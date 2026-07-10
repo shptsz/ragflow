@@ -1,5 +1,6 @@
 declare namespace AdminService {
   export type LoginData = {
+    access_level?: string;
     access_token: string;
     avatar: unknown;
     color_schema: 'Bright' | 'Dark';
@@ -23,6 +24,7 @@ declare namespace AdminService {
   };
 
   export type ListUsersItem = {
+    access_level?: string;
     create_date: string;
     email: string;
     is_active: '0' | '1';
@@ -32,6 +34,7 @@ declare namespace AdminService {
   };
 
   export type UserDetail = {
+    access_level?: string;
     avatar?: string;
     create_date: string;
     email: string;

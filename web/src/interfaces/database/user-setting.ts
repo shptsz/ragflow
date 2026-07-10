@@ -1,4 +1,5 @@
 export interface IUserInfo {
+  access_level?: string;
   access_token: string;
   avatar?: any;
   color_schema: string;
