@@ -223,12 +223,17 @@ func (s *Service) ListUsers(page, pageSize int) ([]map[string]interface{}, error
 
 	result := make([]map[string]interface{}, 0, len(users))
 	for _, user := range users {
+		accessLevel := user.AccessLevel
+		if accessLevel == "" {
+			accessLevel = common.AccessLevelFull
+		}
 		result = append(result, map[string]interface{}{
 			"email":        user.Email,
 			"nickname":     user.Nickname,
 			"create_date":  user.CreateTime,
 			"is_active":    user.IsActive,
 			"is_superuser": user.IsSuperuser,
+			"access_level": accessLevel,
 		})
 	}
 	return result, nil
@@ -282,6 +287,7 @@ func (s *Service) CreateUser(username, password, role string) (map[string]interf
 		IsAnonymous:     "0",
 		LoginChannel:    &loginChannel,
 		IsSuperuser:     &isSuperuser,
+		AccessLevel:     common.AccessLevelFull,
 	}
 
 	// Start transaction for creating user and related data
@@ -537,12 +543,18 @@ func (s *Service) GetUserDetails(username string) (map[string]interface{}, error
 		return nil, common.ErrUserNotFound
 	}
 
+	accessLevel := user.AccessLevel
+	if accessLevel == "" {
+		accessLevel = common.AccessLevelFull
+	}
+
 	return map[string]interface{}{
 		"id":           user.ID,
 		"email":        user.Email,
 		"nickname":     user.Nickname,
 		"is_active":    user.IsActive,
 		"is_superuser": user.IsSuperuser,
+		"access_level": accessLevel,
 		"create_time":  user.CreateTime,
 		"update_time":  user.UpdateTime,
 	}, nil
@@ -827,6 +839,31 @@ func (s *Service) UpdateUserActivateStatus(username string, isActive bool) error
 	}
 
 	user.IsActive = targetStatus
+
+	if err := s.userDAO.Update(user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateUserAccessLevel 更新用户访问级别（full / kb_only）
+func (s *Service) UpdateUserAccessLevel(username, accessLevel string) error {
+	if accessLevel != common.AccessLevelFull && accessLevel != common.AccessLevelKBOnly {
+		return fmt.Errorf("Invalid access_level: %s", accessLevel)
+	}
+
+	userList, err := s.userDAO.ListByEmail(username)
+	if err != nil || len(userList) == 0 {
+		return fmt.Errorf("User '%s' not found", username)
+	}
+
+	if len(userList) > 1 {
+		return fmt.Errorf("Exist more than 1 user: %s!", username)
+	}
+
+	user := userList[0]
+	user.AccessLevel = accessLevel
 
 	if err := s.userDAO.Update(user); err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
@@ -1724,6 +1761,7 @@ func (s *Service) InitDefaultAdmin() error {
 			IsAnonymous:     "0",
 			LoginChannel:    &loginChannel,
 			IsSuperuser:     &isSuperuser,
+			AccessLevel:     common.AccessLevelFull,
 		}
 
 		if err := dao.DB.Create(user).Error; err != nil {

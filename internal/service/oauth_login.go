@@ -222,6 +222,7 @@ func (s *UserService) registerOAuthUser(channel string, info *oauth.UserInfo) (*
 		IsAnonymous:     "0",
 		LoginChannel:    &loginChannel,
 		IsSuperuser:     &isSuperuser,
+		AccessLevel:     common.AccessLevelFull,
 	}
 
 	tenantName := nickname + "'s Kingdom"

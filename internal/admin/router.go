@@ -66,6 +66,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 			protected.DELETE("/users/:username", r.handler.DeleteUser)
 			protected.PUT("/users/:username/password", r.handler.ChangePassword)
 			protected.PUT("/users/:username/activate", r.handler.UpdateUserActivateStatus)
+			protected.PUT("/users/:username/access-level", r.handler.UpdateUserAccessLevel)
 			protected.PUT("/users/:username/admin", r.handler.GrantAdmin)
 			protected.DELETE("/users/:username/admin", r.handler.RevokeAdmin)
 

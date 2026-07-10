@@ -84,6 +84,11 @@ func (h *AuthHandler) BetaAuthMiddleware() gin.HandlerFunc {
 		// AUTH_JWT
 		if u, code, err := h.userService.GetUserByToken(auth); err == nil && code == common.CodeSuccess {
 			c.Set("user", u)
+			if err := common.EnsureRequestAllowed(u.AccessLevel, c.Request.Method, c.Request.URL.Path); err != nil {
+				common.ResponseWithCodeData(c, common.CodeForbidden, nil, err.Error())
+				c.Abort()
+				return
+			}
 			c.Next()
 			return
 		}
@@ -91,6 +96,11 @@ func (h *AuthHandler) BetaAuthMiddleware() gin.HandlerFunc {
 		if u, code, err := h.userService.GetUserByAPIToken(auth); err == nil && code == common.CodeSuccess {
 			c.Set("user", u)
 			c.Set("auth_via_api_token", true)
+			if err := common.EnsureRequestAllowed(u.AccessLevel, c.Request.Method, c.Request.URL.Path); err != nil {
+				common.ResponseWithCodeData(c, common.CodeForbidden, nil, err.Error())
+				c.Abort()
+				return
+			}
 			c.Next()
 			return
 		}
@@ -113,6 +123,11 @@ func (h *AuthHandler) BetaAuthMiddleware() gin.HandlerFunc {
 				// pointer (which would later fail the string assertion).
 				c.Set("agent_id", *tok.DialogID)
 				c.Set("api_token", tok)
+			}
+			if err := common.EnsureRequestAllowed(u.AccessLevel, c.Request.Method, c.Request.URL.Path); err != nil {
+				common.ResponseWithCodeData(c, common.CodeForbidden, nil, err.Error())
+				c.Abort()
+				return
 			}
 			c.Next()
 			return
@@ -166,6 +181,11 @@ func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 		c.Set("user_id", user.ID)
 		c.Set("email", user.Email)
 		c.Set("auth_via_api_token", authViaAPIToken)
+		if err := common.EnsureRequestAllowed(user.AccessLevel, c.Request.Method, c.Request.URL.Path); err != nil {
+			common.ResponseWithCodeData(c, common.CodeForbidden, nil, err.Error())
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

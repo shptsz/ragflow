@@ -77,6 +77,7 @@ type EmailLoginRequest struct {
 }
 
 // UpdateSettingsRequest update user settings request
+// 注意：不含 access_level，PATCH 个人资料时即使客户端传入也会被忽略
 type UpdateSettingsRequest struct {
 	Nickname    *string `json:"nickname,omitempty"`
 	Avatar      *string `json:"avatar,omitempty"`
@@ -159,6 +160,7 @@ func (s *UserService) Register(req *RegisterRequest) (*entity.User, common.Error
 		LastLoginTime:   &now,
 		LoginChannel:    &loginChannel,
 		IsSuperuser:     &isSuperuser,
+		AccessLevel:     common.AccessLevelFull,
 	}
 
 	tenantName := req.Nickname + "'s Kingdom"
@@ -740,7 +742,14 @@ func (s *UserService) GetUserProfile(user *entity.User) map[string]interface{} {
 		isSuperuser = *user.IsSuperuser
 	}
 
+	// access_level 为空时默认 full
+	accessLevel := user.AccessLevel
+	if accessLevel == "" {
+		accessLevel = common.AccessLevelFull
+	}
+
 	return map[string]interface{}{
+		"access_level":     accessLevel,
 		"access_token":     accessToken,
 		"avatar":           avatar,
 		"color_schema":     colorSchema,

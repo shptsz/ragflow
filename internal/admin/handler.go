@@ -30,6 +30,7 @@ import (
 	"ragflow/internal/storage"
 	"ragflow/internal/utility"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -349,6 +350,42 @@ func (h *Handler) UpdateUserActivateStatus(c *gin.Context) {
 	}
 
 	common.SuccessNoData(c, "Activation status updated")
+}
+
+// UpdateAccessLevelHTTPRequest 更新访问级别请求
+type UpdateAccessLevelHTTPRequest struct {
+	AccessLevel string `json:"access_level" binding:"required"`
+}
+
+// UpdateUserAccessLevel 处理更新用户访问级别
+func (h *Handler) UpdateUserAccessLevel(c *gin.Context) {
+	encodedUsername := c.Param("username")
+	username, err := common.DecodeFromBase64(encodedUsername)
+	if err != nil {
+		common.ErrorWithCode(c, 400, err.Error())
+		return
+	}
+	if username == "" {
+		common.ErrorWithCode(c, 400, "Username is required")
+		return
+	}
+
+	var req UpdateAccessLevelHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorWithCode(c, 400, "access_level is required")
+		return
+	}
+
+	if err := h.service.UpdateUserAccessLevel(username, req.AccessLevel); err != nil {
+		if strings.HasPrefix(err.Error(), "Invalid access_level") {
+			common.ErrorWithCode(c, 400, err.Error())
+			return
+		}
+		common.ErrorWithCode(c, 500, err.Error())
+		return
+	}
+
+	common.SuccessNoData(c, "access_level updated to "+req.AccessLevel)
 }
 
 // GrantAdmin handle grant admin role
