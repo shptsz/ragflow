@@ -6,6 +6,10 @@ import {
   type RouteObject,
 } from 'react-router';
 import FallbackComponent from './components/fallback-component';
+import {
+  RequireFullAccess,
+  withRequireFullAccess,
+} from './components/require-full-access';
 import { useAccessLevel } from './hooks/use-access-level';
 import { IS_ENTERPRISE } from './pages/admin/utils';
 import authorizationUtil from './utils/authorization-util';
@@ -150,7 +154,7 @@ const routeConfigOptions = [
   },
   {
     path: Routes.AgentList,
-    Component: () => import('@/pages/agents'),
+    Component: withRequireFullAccess(() => import('@/pages/agents')),
   },
   {
     path: '/document/:id',
@@ -185,7 +189,7 @@ const routeConfigOptions = [
   },
   {
     path: Routes.Chat + '/:id',
-    Component: () => import('@/pages/next-chats/chat'),
+    Component: withRequireFullAccess(() => import('@/pages/next-chats/chat')),
   },
   {
     path: Routes.Root,
@@ -232,7 +236,7 @@ const routeConfigOptions = [
       {
         path: `${Routes.Search}/:id`,
         layout: false,
-        Component: () => import('@/pages/next-search'),
+        Component: withRequireFullAccess(() => import('@/pages/next-search')),
       },
       {
         path: Routes.Agents,
@@ -241,7 +245,9 @@ const routeConfigOptions = [
       {
         path: Routes.AgentTemplates,
         layout: false,
-        Component: () => import('@/pages/agents/agent-templates'),
+        Component: withRequireFullAccess(
+          () => import('@/pages/agents/agent-templates'),
+        ),
       },
       {
         path: Routes.Memories,
@@ -329,6 +335,7 @@ const routeConfigOptions = [
   },
   {
     path: Routes.Agent,
+    element: <RequireFullAccess />,
     children: [
       {
         path: `${Routes.Agent}/:id`,
@@ -343,11 +350,13 @@ const routeConfigOptions = [
   },
   {
     path: `${Routes.AgentLogPage}/:id`,
-    Component: () => import('@/pages/agents/agent-log-page'),
+    Component: withRequireFullAccess(
+      () => import('@/pages/agents/agent-log-page'),
+    ),
   },
   {
     path: `${Routes.DataflowResult}`,
-    Component: () => import('@/pages/dataflow-result'),
+    Component: withRequireFullAccess(() => import('@/pages/dataflow-result')),
   },
   {
     path: Routes.Chunk,
