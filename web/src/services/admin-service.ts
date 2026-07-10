@@ -106,6 +106,7 @@ const {
   adminGetUserDetails,
   adminUpdateUserStatus,
   adminUpdateUserPassword,
+  adminUpdateUserAccessLevel,
   adminDeleteUser,
   adminListUserDatasets,
   adminListUserAgents,
@@ -182,6 +183,13 @@ export const updateUserStatus = (email: string, status: 'on' | 'off') =>
   request.put(adminUpdateUserStatus(email), { activate_status: status });
 export const updateUserPassword = (email: string, password: string) =>
   request.put(adminUpdateUserPassword(email), { new_password: password });
+export const updateUserAccessLevel = (
+  email: string,
+  accessLevel: 'full' | 'kb_only',
+) =>
+  request.put(adminUpdateUserAccessLevel(email), {
+    access_level: accessLevel,
+  });
 export const deleteUser = (email: string) =>
   request.delete(adminDeleteUser(email));
 

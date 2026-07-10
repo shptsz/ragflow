@@ -2747,6 +2747,12 @@ Tokenizer 会根据所选方式将内容存储为对应的数据结构。`,
       addNow: '立即添加',
     },
 
+    admin: {
+      accessLevel: '访问级别',
+      accessLevelFull: '完整功能',
+      accessLevelKbOnly: '仅知识库',
+    },
+
     explore: {
       title: '探索',
       canvasList: '画布列表',

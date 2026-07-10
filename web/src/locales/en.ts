@@ -3263,6 +3263,9 @@ Important structured information may include: names, dates, locations, events, k
       userType: 'User type',
       superuser: 'Superuser',
       normalUser: 'Normal',
+      accessLevel: 'Access level',
+      accessLevelFull: 'Full access',
+      accessLevelKbOnly: 'Knowledge base only',
 
       createTime: 'Create time',
       lastLoginTime: 'Last login time',

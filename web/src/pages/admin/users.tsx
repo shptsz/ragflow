@@ -87,6 +87,7 @@ import {
   revokeSuperuser,
   updateUserPassword,
   updateUserRole,
+  updateUserAccessLevel,
   updateUserStatus,
 } from '@/services/admin-service';
 
@@ -231,6 +232,17 @@ function AdminUserManagement() {
   const updateUserStatusMutation = useMutation({
     mutationFn: (data: { email: string; isActive: boolean }) =>
       updateUserStatus(data.email, data.isActive ? 'on' : 'off'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin/listUsers'] });
+    },
+    retry: false,
+  });
+
+  const updateUserAccessLevelMutation = useMutation({
+    mutationFn: (data: {
+      email: string;
+      accessLevel: 'full' | 'kb_only';
+    }) => updateUserAccessLevel(data.email, data.accessLevel),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin/listUsers'] });
     },
@@ -386,6 +398,33 @@ function AdminUserManagement() {
         },
       }),
 
+      columnHelper.accessor('access_level', {
+        header: t('admin.accessLevel'),
+        cell: ({ cell, row }) => (
+          <Select
+            disabled={updateUserAccessLevelMutation.isPending}
+            value={cell.getValue() ?? 'full'}
+            onValueChange={(value) =>
+              updateUserAccessLevelMutation.mutate({
+                email: row.original.email,
+                accessLevel: value as 'full' | 'kb_only',
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="full">{t('admin.accessLevelFull')}</SelectItem>
+              <SelectItem value="kb_only">
+                {t('admin.accessLevelKbOnly')}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+      }),
+
       columnHelper.display({
         id: 'actions',
         header: t('admin.actions'),
@@ -444,6 +483,7 @@ function AdminUserManagement() {
       updateUserRoleMutation,
       userInfo?.email,
       updateUserStatusMutation,
+      updateUserAccessLevelMutation,
       setSuperuserMutation,
       navigate,
     ],
