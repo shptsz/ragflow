@@ -16,6 +16,8 @@ def test_kb_only_allows_datasets_and_profile():
     assert is_path_allowed_for_kb_only("GET", "/api/v1/datasets") is True
     assert is_path_allowed_for_kb_only("GET", "/api/v1/datasets/abc/documents") is True
     assert is_path_allowed_for_kb_only("GET", "/api/v1/users/me") is True
+    assert is_path_allowed_for_kb_only("HEAD", "/api/v1/users/me") is True
+    assert is_path_allowed_for_kb_only("OPTIONS", "/api/v1/users/me") is True
     assert is_path_allowed_for_kb_only("PATCH", "/api/v1/users/me") is True
 
 
@@ -44,14 +46,25 @@ def test_kb_only_allows_auth_and_system():
     assert is_path_allowed_for_kb_only("POST", "/api/v1/auth/logout") is True
     assert is_path_allowed_for_kb_only("GET", "/api/v1/system/ping") is True
     assert is_path_allowed_for_kb_only("GET", "/api/v1/system/healthz") is True
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/system/config") is True
     assert is_path_allowed_for_kb_only("GET", "/v1/system/healthz") is True
+
+
+def test_kb_only_allows_read_only_models():
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/models") is True
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/models/default") is True
+    assert is_path_allowed_for_kb_only("HEAD", "/api/v1/models") is True
+    assert is_path_allowed_for_kb_only("OPTIONS", "/api/v1/models/default") is True
 
 
 def test_kb_only_denies_non_kb_modules():
     assert is_path_allowed_for_kb_only("GET", "/api/v1/mcp/servers") is False
     assert is_path_allowed_for_kb_only("GET", "/api/v1/connectors") is False
     assert is_path_allowed_for_kb_only("GET", "/api/v1/providers") is False
-    assert is_path_allowed_for_kb_only("GET", "/api/v1/models") is False
+    assert is_path_allowed_for_kb_only("PATCH", "/api/v1/models/default") is False
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/users/me/models") is False
+    assert is_path_allowed_for_kb_only("GET", "/v1/document/download/xyz") is False
+    assert is_path_allowed_for_kb_only("POST", "/v1/document/upload_info") is True
 
 
 def test_ensure_request_allowed_full_access():

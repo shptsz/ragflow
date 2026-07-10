@@ -21,6 +21,8 @@ class AccessDeniedError(Exception):
     """kb_only 用户访问了未授权模块。"""
 
 
+_READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
 # kb_only 用户允许访问的路径前缀（知识库域 + 登录/基础系统接口）
 _KB_ONLY_ALLOW_PREFIXES: tuple[str, ...] = (
     "/api/v1/datasets",
@@ -34,15 +36,26 @@ _KB_ONLY_ALLOW_PREFIXES: tuple[str, ...] = (
     "/api/v1/system/version",
     "/api/v1/system/healthz",
     "/api/v1/system/status",
+    "/api/v1/system/config",
     "/v1/system/healthz",
-    "/v1/document/",
 )
 
-# 精确匹配：仅允许读取/更新个人资料，不含 models 等子路径
+# 精确匹配：个人资料、遗留上传接口等，不含 models 等子路径
 _KB_ONLY_EXACT_PATHS: frozenset[tuple[str, str]] = frozenset(
     {
         ("GET", "/api/v1/users/me"),
+        ("HEAD", "/api/v1/users/me"),
+        ("OPTIONS", "/api/v1/users/me"),
         ("PATCH", "/api/v1/users/me"),
+        ("POST", "/v1/document/upload_info"),
+    }
+)
+
+# 仅允许只读方法访问的路径（知识库配置所需的模型列表）
+_KB_ONLY_READ_ONLY_PATHS: frozenset[str] = frozenset(
+    {
+        "/api/v1/models",
+        "/api/v1/models/default",
     }
 )
 
@@ -62,6 +75,9 @@ def is_path_allowed_for_kb_only(method: str, path: str) -> bool:
     path = _normalize_path(path)
 
     if (method, path) in _KB_ONLY_EXACT_PATHS:
+        return True
+
+    if method in _READ_ONLY_METHODS and path in _KB_ONLY_READ_ONLY_PATHS:
         return True
 
     for prefix in _KB_ONLY_ALLOW_PREFIXES:
