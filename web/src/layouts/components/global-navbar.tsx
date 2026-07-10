@@ -15,6 +15,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useAccessLevel } from '@/hooks/use-access-level';
 import { cn } from '@/lib/utils';
 import { Routes } from '@/routes';
 import { supportsCssAnchor } from '@/utils/css-support';
@@ -72,22 +73,35 @@ function useActivePath() {
   }, [pathname]);
 }
 
+/** kb_only 仅展示知识库入口 */
+function useVisibleMenuItems() {
+  const { isKbOnly } = useAccessLevel();
+  return useMemo(
+    () =>
+      isKbOnly
+        ? menuItems.filter((item) => item.path === Routes.Datasets)
+        : menuItems,
+    [isKbOnly],
+  );
+}
+
 const DesktopNavbarWithAnchor = () => {
   const { t } = useTranslation();
   const activePath = useActivePath();
+  const visibleMenuItems = useVisibleMenuItems();
   const navbarAnchorNamePrefix = useId().replace(/:/g, '');
 
   const activePathAnchorName = `--${navbarAnchorNamePrefix}${activePath === Routes.Root ? '-root' : activePath.replace('/', '-')}`;
 
   const hasAnyActive = useMemo(
-    () => menuItems.some(({ path }) => path === activePath),
-    [activePath],
+    () => visibleMenuItems.some(({ path }) => path === activePath),
+    [activePath, visibleMenuItems],
   );
 
   return (
     <nav>
       <ul className="relative flex items-center p-1 bg-bg-card rounded-full border border-border-button">
-        {menuItems.map(({ path, name, icon: Icon, ...props }) => {
+        {visibleMenuItems.map(({ path, name, icon: Icon, ...props }) => {
           const isActive = path === activePath;
           const anchorName = `--${navbarAnchorNamePrefix}${path === Routes.Root ? '-root' : path.replace('/', '-')}`;
 
@@ -139,11 +153,12 @@ const DesktopNavbarWithAnchor = () => {
 const DesktopNavbarFallback = () => {
   const { t } = useTranslation();
   const activePath = useActivePath();
+  const visibleMenuItems = useVisibleMenuItems();
 
   return (
     <nav>
       <ul className="flex items-center p-1 bg-bg-card rounded-full border border-border-button">
-        {menuItems.map(({ path, name, icon: Icon, ...props }) => {
+        {visibleMenuItems.map(({ path, name, icon: Icon, ...props }) => {
           const isActive = path === activePath;
 
           return (
@@ -222,6 +237,7 @@ type MobileNavbarProps = {
 export function MobileNavbar({ renderFooter }: MobileNavbarProps) {
   const { t } = useTranslation();
   const activePath = useActivePath();
+  const visibleMenuItems = useVisibleMenuItems();
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -250,7 +266,7 @@ export function MobileNavbar({ renderFooter }: MobileNavbarProps) {
 
         <nav className="min-h-0 flex-1 overflow-y-auto py-3">
           <ul className="space-y-1">
-            {menuItems.map(({ path, name, icon, ...props }) => (
+            {visibleMenuItems.map(({ path, name, icon, ...props }) => (
               <li key={path}>
                 <MobileNavItem
                   {...props}

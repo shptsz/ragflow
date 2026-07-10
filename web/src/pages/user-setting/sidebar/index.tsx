@@ -3,6 +3,7 @@ import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import ThemeSwitch from '@/components/theme-switch';
 import { Button } from '@/components/ui/button';
 import { Domain } from '@/constants/common';
+import { useAccessLevel } from '@/hooks/use-access-level';
 import { useLogout } from '@/hooks/use-login-request';
 import {
   useFetchSystemVersion,
@@ -20,7 +21,7 @@ import {
   LucideUser,
   LucideUsers,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHandleMenuClick } from './hooks';
 
@@ -67,6 +68,7 @@ export function SideBar() {
   const { data: userInfo } = useFetchUserInfo();
   const { handleMenuClick, active: activeItemKey } = useHandleMenuClick();
   const { version, fetchSystemVersion } = useFetchSystemVersion();
+  const { isKbOnly } = useAccessLevel();
   const { t } = useTranslation();
   useEffect(() => {
     if (location.host !== Domain) {
@@ -74,6 +76,14 @@ export function SideBar() {
     }
   }, [fetchSystemVersion]);
   const { logout } = useLogout();
+
+  // kb_only 仅保留个人资料（密码修改在资料页内）
+  const visibleMenuItems = useMemo(() => {
+    const items = menuItems(t);
+    return isKbOnly
+      ? items.filter((item) => item.key === Routes.Profile)
+      : items;
+  }, [isKbOnly, t]);
 
   return (
     <aside className="shrink-0 w-16 md:w-[303px] bg-bg-base flex flex-col overflow-hidden">
@@ -93,7 +103,7 @@ export function SideBar() {
 
       <nav className="flex-1 overflow-auto mt-4 py-1">
         <ul className="px-2 md:px-6 flex flex-col gap-2 md:gap-5 items-center md:items-stretch">
-          {menuItems(t).map((item) => {
+          {visibleMenuItems.map((item) => {
             const { key, icon, label, ...rest } = item;
 
             return (

@@ -6,6 +6,7 @@ import {
   type RouteObject,
 } from 'react-router';
 import FallbackComponent from './components/fallback-component';
+import { useAccessLevel } from './hooks/use-access-level';
 import { IS_ENTERPRISE } from './pages/admin/utils';
 import authorizationUtil from './utils/authorization-util';
 
@@ -75,6 +76,21 @@ export enum Routes {
   AdminWhitelist = `${Admin}/whitelist`,
   AdminRoles = `${Admin}/roles`,
   AdminMonitoring = `${Admin}/monitoring`,
+}
+
+/** kb_only 进入设置时落到个人资料，否则落到数据源 */
+function UserSettingIndexRedirect() {
+  const { isKbOnly } = useAccessLevel();
+  return (
+    <Navigate
+      to={
+        isKbOnly
+          ? `${Routes.UserSetting}/profile`
+          : `${Routes.UserSetting}${Routes.DataSource}`
+      }
+      replace
+    />
+  );
 }
 
 const defaultRouteFallback = (
@@ -260,9 +276,7 @@ const routeConfigOptions = [
         children: [
           {
             path: Routes.UserSetting,
-            element: (
-              <Navigate to={`/user-setting${Routes.DataSource}`} replace />
-            ),
+            element: <UserSettingIndexRedirect />,
           },
           {
             path: `${Routes.UserSetting}/profile`,
