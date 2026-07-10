@@ -36,17 +36,19 @@ _KB_ONLY_ALLOW_PREFIXES: tuple[str, ...] = (
     "/api/v1/system/version",
     "/api/v1/system/healthz",
     "/api/v1/system/status",
-    "/api/v1/system/config",
     "/v1/system/healthz",
 )
 
-# 精确匹配：个人资料、遗留上传接口等，不含 models 等子路径
+# 精确匹配：个人资料、公开系统配置、遗留上传接口等（避免 /system/config 前缀误放行 configs/log）
 _KB_ONLY_EXACT_PATHS: frozenset[tuple[str, str]] = frozenset(
     {
         ("GET", "/api/v1/users/me"),
         ("HEAD", "/api/v1/users/me"),
         ("OPTIONS", "/api/v1/users/me"),
         ("PATCH", "/api/v1/users/me"),
+        ("GET", "/api/v1/system/config"),
+        ("HEAD", "/api/v1/system/config"),
+        ("OPTIONS", "/api/v1/system/config"),
         ("POST", "/v1/document/upload_info"),
     }
 )

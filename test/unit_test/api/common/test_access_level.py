@@ -48,6 +48,10 @@ def test_kb_only_allows_auth_and_system():
     assert is_path_allowed_for_kb_only("GET", "/api/v1/system/healthz") is True
     assert is_path_allowed_for_kb_only("GET", "/api/v1/system/config") is True
     assert is_path_allowed_for_kb_only("GET", "/v1/system/healthz") is True
+    # 前缀过宽会误放行 configs / config/log，必须拒绝
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/system/configs") is False
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/system/config/log") is False
+    assert is_path_allowed_for_kb_only("PUT", "/api/v1/system/config/log") is False
 
 
 def test_kb_only_allows_read_only_models():

@@ -96,6 +96,23 @@ func TestIsPathAllowedForKbOnly_DenyDownloadPath(t *testing.T) {
 	}
 }
 
+func TestIsPathAllowedForKbOnly_SystemConfigExact(t *testing.T) {
+	if !IsPathAllowedForKbOnly("GET", "/api/v1/system/config") {
+		t.Error("expected allow GET /api/v1/system/config")
+	}
+	// 前缀过宽会误放行 configs / config/log
+	denied := []struct{ method, path string }{
+		{"GET", "/api/v1/system/configs"},
+		{"GET", "/api/v1/system/config/log"},
+		{"PUT", "/api/v1/system/config/log"},
+	}
+	for _, tc := range denied {
+		if IsPathAllowedForKbOnly(tc.method, tc.path) {
+			t.Errorf("expected deny %s %s", tc.method, tc.path)
+		}
+	}
+}
+
 func TestEnsureRequestAllowed(t *testing.T) {
 	if err := EnsureRequestAllowed("full", "GET", "/api/v1/chats"); err != nil {
 		t.Errorf("full user should pass: %v", err)

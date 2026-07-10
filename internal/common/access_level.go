@@ -46,17 +46,22 @@ var kbOnlyAllowPrefixes = []string{
 	"/api/v1/system/version",
 	"/api/v1/system/healthz",
 	"/api/v1/system/status",
-	"/api/v1/system/config",
 	"/v1/system/healthz",
 }
 
-// 精确匹配：个人资料、遗留上传接口等
+// 精确匹配：个人资料、公开系统配置、遗留上传接口等
+// （避免 /system/config 前缀误放行 /configs 或 /config/log）
 var kbOnlyExactPaths = map[string]map[string]struct{}{
 	"/api/v1/users/me": {
 		"GET":     {},
 		"HEAD":    {},
 		"OPTIONS": {},
 		"PATCH":   {},
+	},
+	"/api/v1/system/config": {
+		"GET":     {},
+		"HEAD":    {},
+		"OPTIONS": {},
 	},
 	"/v1/document/upload_info": {
 		"POST": {},
