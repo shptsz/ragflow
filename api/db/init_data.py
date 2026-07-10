@@ -21,7 +21,7 @@ import time
 import uuid
 
 from peewee import IntegrityError
-from api.db import UserTenantRole
+from api.db import AccessLevel, UserTenantRole
 from api.db.db_models import init_database_tables as init_web_db
 from api.db.services import UserService
 from api.db.services.canvas_service import CanvasTemplateService
@@ -57,6 +57,7 @@ def init_superuser(nickname=DEFAULT_SUPERUSER_NICKNAME, email=DEFAULT_SUPERUSER_
         "email": email,
         "creator": "system",
         "status": "1",
+        "access_level": AccessLevel.FULL,
     }
     tenant = {
         "id": user_info["id"],

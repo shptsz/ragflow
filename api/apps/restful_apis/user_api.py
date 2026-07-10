@@ -26,7 +26,7 @@ from quart import make_response, redirect, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from api.apps.auth import get_auth_client
-from api.db import FileType, UserTenantRole
+from api.db import AccessLevel, FileType, UserTenantRole
 from api.db.services.file_service import FileService
 from api.db.services.user_service import TenantService, UserService, UserTenantService
 from common.time_utils import current_timestamp, datetime_format, get_format_time
@@ -239,6 +239,7 @@ async def oauth_callback(channel):
                         "login_channel": channel,
                         "last_login_time": get_format_time(),
                         "is_superuser": False,
+                        "access_level": AccessLevel.FULL,
                     },
                 )
 
@@ -358,6 +359,7 @@ async def setting_user():
             "is_active",
             "is_authenticated",
             "last_login_time",
+            "access_level",
         ]:
             continue
         update_dict[k] = request_data[k]
@@ -538,6 +540,7 @@ async def user_add():
         "login_channel": "password",
         "last_login_time": get_format_time(),
         "is_superuser": False,
+        "access_level": AccessLevel.FULL,
     }
 
     user_id = get_uuid()

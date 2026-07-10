@@ -17,7 +17,7 @@ import logging
 import uuid
 
 from api.utils.api_utils import group_by
-from api.db import FileType, UserTenantRole
+from api.db import AccessLevel, FileType, UserTenantRole
 from api.db.services.api_service import APITokenService, API4ConversationService
 from api.db.services.canvas_service import UserCanvasService
 from api.db.services.conversation_service import ConversationService
@@ -59,6 +59,7 @@ def create_new_user(user_info: dict) -> dict:
     user_id = uuid.uuid1().hex
     user_info["id"] = user_id
     user_info["access_token"] = uuid.uuid1().hex
+    user_info.setdefault("access_level", AccessLevel.FULL)
     # construct tenant info
     tenant = {
         "id": user_id,

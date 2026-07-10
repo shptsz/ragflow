@@ -72,9 +72,26 @@ def test_ensure_request_allowed_full_access():
     ensure_request_allowed(None, "GET", "/api/v1/chats")
 
 
+def test_ensure_request_allowed_kb_only_datasets_ok():
+    ensure_request_allowed("kb_only", "GET", "/api/v1/datasets")
+
+
 def test_ensure_request_allowed_raises_for_kb_only():
     try:
         ensure_request_allowed("kb_only", "GET", "/api/v1/chats")
         assert False, "expected AccessDeniedError"
     except AccessDeniedError:
         pass
+
+
+def test_login_required_wires_access_level_guard():
+    """文档化 login_required 中的 access_level 拦截接线（不加载完整 Quart app）。"""
+    from pathlib import Path
+
+    from common.constants import RetCode
+
+    source = Path("api/apps/__init__.py").read_text(encoding="utf-8")
+    assert "ensure_request_allowed" in source
+    assert "AccessDeniedError" in source
+    assert "RetCode.FORBIDDEN" in source
+    assert RetCode.FORBIDDEN == 403

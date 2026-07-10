@@ -27,6 +27,7 @@ from api.db.db_models import close_connection, APIToken
 from api.db.services import UserService
 from api.utils.json_encode import CustomJSONEncoder
 from api.utils import commands
+from api.common.access_level import ensure_request_allowed, AccessDeniedError
 
 from quart_auth import Unauthorized as QuartAuthUnauthorized
 from werkzeug.exceptions import Unauthorized as WerkzeugUnauthorized
@@ -271,6 +272,14 @@ def login_required(func: Callable[P, Awaitable[T]] = None, auth_types=None) -> C
                         message=getattr(g, "auth_error_message", None) or "Authorization is not valid!",
                     )
                 raise QuartAuthUnauthorized()
+            try:
+                ensure_request_allowed(getattr(user, "access_level", None), request.method, request.path)
+            except AccessDeniedError as e:
+                return get_json_result(
+                    data=False,
+                    message=str(e),
+                    code=RetCode.FORBIDDEN,
+                )
             return await current_app.ensure_async(func)(*args, **kwargs)
 
         return wrapper
