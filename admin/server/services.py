@@ -50,6 +50,7 @@ class UserMgr:
                     "create_date": user.create_date,
                     "is_active": user.is_active,
                     "is_superuser": user.is_superuser,
+                    "access_level": getattr(user, "access_level", None) or "full",
                 }
             )
         return result
@@ -73,6 +74,7 @@ class UserMgr:
                     "is_superuser": user.is_superuser,
                     "create_date": user.create_date,
                     "update_date": user.update_date,
+                    "access_level": getattr(user, "access_level", None) or "full",
                 }
             )
         return result
@@ -222,6 +224,21 @@ class UserMgr:
         # update is_active
         UserService.update_user(usr.id, {"is_superuser": False})
         return "Revoke successfully!"
+
+    @staticmethod
+    def update_user_access_level(username: str, access_level: str) -> str:
+        from api.db import AccessLevel
+
+        if access_level not in (AccessLevel.FULL, AccessLevel.KB_ONLY):
+            raise AdminException(f"Invalid access_level: {access_level}", 400)
+        user_list = UserService.query_user_by_email(username)
+        if not user_list:
+            raise UserNotFoundError(username)
+        if len(user_list) > 1:
+            raise AdminException(f"Exist more than 1 user: {username}!")
+        usr = user_list[0]
+        UserService.update_user(usr.id, {"access_level": access_level})
+        return f"access_level updated to {access_level}"
 
 
 class UserServiceMgr:

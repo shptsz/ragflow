@@ -164,6 +164,23 @@ def alter_user_activate_status(username):
         return error_response(str(e), 500)
 
 
+@admin_bp.route("/users/<username>/access-level", methods=["PUT"])
+@login_required
+@check_admin_auth
+def alter_user_access_level(username):
+    try:
+        data = request.get_json()
+        if not data or "access_level" not in data:
+            return error_response("access_level is required", 400)
+        access_level = data["access_level"]
+        msg = UserMgr.update_user_access_level(username, access_level)
+        return success_response(None, msg)
+    except AdminException as e:
+        return error_response(e.message, e.code)
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
 @admin_bp.route("/users/<username>/admin", methods=["PUT"])
 @login_required
 @check_admin_auth
