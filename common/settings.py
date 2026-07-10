@@ -96,6 +96,9 @@ kg_retriever = None
 # user registration switch
 REGISTER_ENABLED = 1
 
+# 注册审核：开启后新用户 is_active=0，需管理员启用后才能登录
+REGISTER_APPROVAL_REQUIRED = 1
+
 # SSO-only mode: hide password login form
 DISABLE_PASSWORD_LOGIN = False
 
@@ -230,6 +233,12 @@ def init_settings():
     global REGISTER_ENABLED
     try:
         REGISTER_ENABLED = int(os.environ.get("REGISTER_ENABLED", "1"))
+    except Exception:
+        pass
+
+    global REGISTER_APPROVAL_REQUIRED
+    try:
+        REGISTER_APPROVAL_REQUIRED = int(os.environ.get("REGISTER_APPROVAL_REQUIRED", "1"))
     except Exception:
         pass
 

@@ -1591,6 +1591,8 @@ NER：使用 spaCy NER 和基于规则的关键词提取来抽取实体和关系
     },
     message: {
       registered: '注册成功',
+      registerPendingApproval: '注册成功，请等待管理员审核通过后再登录',
+      registerDisabled: '用户注册已关闭',
       logout: '登出成功',
       logged: '登录成功',
       pleaseSelectChunk: '请选择解析块',

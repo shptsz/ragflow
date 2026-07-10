@@ -112,6 +112,12 @@ func (h *UserHandler) OAuthCallback(c *gin.Context) {
 		return
 	}
 
+	// 注册审核：新用户未激活时不签发登录态
+	if result.User != nil && result.User.IsActive == "0" {
+		c.Redirect(http.StatusFound, frontendBase+"?error=pending_approval")
+		return
+	}
+
 	secretKey, kerr := server.GetSecretKey(redis.Get())
 	if kerr != nil {
 		c.Redirect(http.StatusFound, frontendBase+"?error=server_error")

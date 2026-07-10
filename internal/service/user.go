@@ -144,6 +144,10 @@ func (s *UserService) Register(req *RegisterRequest) (*entity.User, common.Error
 	timezone := "UTC+8\tAsia/Shanghai"
 
 	now := time.Now().Truncate(time.Second)
+	isActive := "1"
+	if cfg.Authentication.RegisterApprovalRequired {
+		isActive = "0"
+	}
 	user := &entity.User{
 		ID:              userID,
 		AccessToken:     &accessToken,
@@ -154,7 +158,7 @@ func (s *UserService) Register(req *RegisterRequest) (*entity.User, common.Error
 		Language:        &language,
 		ColorSchema:     &colorSchema,
 		Timezone:        &timezone,
-		IsActive:        "1",
+		IsActive:        isActive,
 		IsAuthenticated: "1",
 		IsAnonymous:     "0",
 		LastLoginTime:   &now,
@@ -408,7 +412,7 @@ func (s *UserService) LoginByEmail(req *EmailLoginRequest) (*entity.User, common
 	}
 
 	if user.IsActive == "0" {
-		return nil, common.CodeForbidden, fmt.Errorf("This account has been disabled, please contact the administrator!")
+		return nil, common.CodeForbidden, fmt.Errorf("This account is pending approval or has been disabled, please contact the administrator!")
 	}
 
 	// Generate new access token

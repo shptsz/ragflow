@@ -1,6 +1,7 @@
 import message from '@/components/ui/message';
 import authorizationUtil from '@/utils/authorization-util';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 
 export const useOAuthCallback = () => {
@@ -11,10 +12,18 @@ export const useOAuthCallback = () => {
     [currentQueryParameters],
   );
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (error) {
-      message.error(error);
+      if (error === 'pending_approval') {
+        message.success(
+          t('message.registerPendingApproval') ||
+            'Registration successful. Please wait for administrator approval.',
+        );
+      } else {
+        message.error(error);
+      }
       setTimeout(() => {
         navigate('/login');
         newQueryParameters.delete('error');
@@ -36,6 +45,7 @@ export const useOAuthCallback = () => {
     newQueryParameters,
     navigate,
     setSearchParams,
+    t,
   ]);
 
   console.debug(currentQueryParameters.get('auth'));

@@ -104,7 +104,14 @@ export const useRegister = () => {
     }) => {
       const { data = {} } = await userService.register(params);
       if (data.code === 0) {
-        message.success(t('message.registered'));
+        if (data?.data?.pending_approval) {
+          message.success(
+            t('message.registerPendingApproval') ||
+              'Registration successful. Please wait for administrator approval.',
+          );
+        } else {
+          message.success(t('message.registered'));
+        }
       } else if (
         data.message &&
         data.message.includes('registration is disabled')
@@ -113,7 +120,7 @@ export const useRegister = () => {
           t('message.registerDisabled') || 'User registration is disabled',
         );
       }
-      return data.code;
+      return data;
     },
   });
 

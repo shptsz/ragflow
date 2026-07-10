@@ -115,11 +115,11 @@ async def login():
     user = UserService.query_user(email, password)
 
     if user and hasattr(user, "is_active") and user.is_active == "0":
-        logging.warning("Login failed: disabled account for user_id=%s", user.id)
+        logging.warning("Login failed: disabled/pending account for user_id=%s", user.id)
         return get_json_result(
             data=False,
             code=RetCode.FORBIDDEN,
-            message="This account has been disabled, please contact the administrator!",
+            message="This account is pending approval or has been disabled, please contact the administrator!",
         )
     elif user:
         user.access_token = get_uuid()
@@ -240,6 +240,7 @@ async def oauth_callback(channel):
                         "last_login_time": get_format_time(),
                         "is_superuser": False,
                         "access_level": AccessLevel.FULL,
+                        "is_active": "0" if settings.REGISTER_APPROVAL_REQUIRED else "1",
                     },
                 )
 
@@ -248,8 +249,10 @@ async def oauth_callback(channel):
                 if len(users) > 1:
                     raise Exception(f"Same email: {user_info.email} exists!")
 
-                # Try to log in
                 user = users[0]
+                if settings.REGISTER_APPROVAL_REQUIRED:
+                    return redirect("/?error=pending_approval")
+
                 login_user(user)
                 return redirect(f"/?auth={user.get_id()}")
 
@@ -541,6 +544,8 @@ async def user_add():
         "last_login_time": get_format_time(),
         "is_superuser": False,
         "access_level": AccessLevel.FULL,
+        # 开启注册审核时，新用户默认未激活，需管理员启用
+        "is_active": "0" if settings.REGISTER_APPROVAL_REQUIRED else "1",
     }
 
     user_id = get_uuid()
@@ -551,6 +556,13 @@ async def user_add():
         if len(users) > 1:
             raise Exception(f"Same email: {email_address} exists!")
         user = users[0]
+
+        if settings.REGISTER_APPROVAL_REQUIRED:
+            return get_json_result(
+                data={"pending_approval": True, "email": email_address},
+                message="Registration successful. Please wait for administrator approval.",
+            )
+
         login_user(user)
         return await construct_response(
             data=user.to_safe_dict(for_self=True),

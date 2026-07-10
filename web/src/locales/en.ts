@@ -1930,6 +1930,8 @@ Example: Virtual Hosted Style`,
     },
     message: {
       registered: 'Registered!',
+      registerPendingApproval:
+        'Registration successful. Please wait for administrator approval.',
       logout: 'logout',
       logged: 'logged!',
       pleaseSelectChunk: 'Please select chunk!',

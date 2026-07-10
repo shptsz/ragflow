@@ -341,12 +341,12 @@ const Login = () => {
           navigate('/');
         }
       } else {
-        const code = await register({
+        const res = await register({
           nickname: params.nickname,
           email: params.email,
           password: rsaPassWord,
         });
-        if (code === 0) {
+        if (res?.code === 0) {
           setTitle('login');
         }
       }

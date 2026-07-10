@@ -63,8 +63,9 @@ type AdminConfig struct {
 }
 
 type AuthenticationConfig struct {
-	DisablePasswordLogin bool `mapstructure:"disable_password_login"`
-	RegisterEnabled      bool `mapstructure:"register_enabled"`
+	DisablePasswordLogin    bool `mapstructure:"disable_password_login"`
+	RegisterEnabled         bool `mapstructure:"register_enabled"`
+	RegisterApprovalRequired bool `mapstructure:"register_approval_required"`
 }
 
 type DefaultSuperUser struct {
@@ -465,6 +466,21 @@ func FromEnvironments() error {
 		} else {
 			globalConfig.Authentication.RegisterEnabled = false
 		}
+	} else {
+		// 未设置环境变量时默认允许注册
+		globalConfig.Authentication.RegisterEnabled = true
+	}
+
+	// Load REGISTER_APPROVAL_REQUIRED（默认开启：新用户需管理员审核）
+	if envVal := os.Getenv("REGISTER_APPROVAL_REQUIRED"); envVal != "" {
+		str := strings.ToLower(envVal)
+		if str == "true" || str == "1" || str == "yes" {
+			globalConfig.Authentication.RegisterApprovalRequired = true
+		} else {
+			globalConfig.Authentication.RegisterApprovalRequired = false
+		}
+	} else {
+		globalConfig.Authentication.RegisterApprovalRequired = true
 	}
 
 	// Load DISABLE_PASSWORD_LOGIN from environment variable (default: false)

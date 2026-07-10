@@ -221,6 +221,7 @@ def get_config():
     return get_json_result(
         data={
             "registerEnabled": settings.REGISTER_ENABLED,
+            "registerApprovalRequired": bool(settings.REGISTER_APPROVAL_REQUIRED),
             "disablePasswordLogin": settings.DISABLE_PASSWORD_LOGIN,
         }
     )

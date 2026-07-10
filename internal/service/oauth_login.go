@@ -210,6 +210,10 @@ func (s *UserService) registerOAuthUser(channel string, info *oauth.UserInfo) (*
 		nickname = info.Email
 	}
 
+	isActive := "1"
+	if cfg.Authentication.RegisterApprovalRequired {
+		isActive = "0"
+	}
 	user := &entity.User{
 		ID:              userID,
 		AccessToken:     &accessToken,
@@ -217,7 +221,7 @@ func (s *UserService) registerOAuthUser(channel string, info *oauth.UserInfo) (*
 		Nickname:        nickname,
 		Avatar:          &info.AvatarURL,
 		Status:          &status,
-		IsActive:        "1",
+		IsActive:        isActive,
 		IsAuthenticated: "1",
 		IsAnonymous:     "0",
 		LoginChannel:    &loginChannel,

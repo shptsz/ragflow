@@ -70,6 +70,19 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 注册审核：不签发登录态，等待管理员启用
+	if user.IsActive == "0" {
+		common.SuccessWithData(
+			c,
+			map[string]interface{}{
+				"pending_approval": true,
+				"email":            req.Email,
+			},
+			"Registration successful. Please wait for administrator approval.",
+		)
+		return
+	}
+
 	secretKey, err := server.GetSecretKey(redis.Get())
 	if err != nil {
 		common.ResponseWithCodeData(c, common.CodeServerError, false, err.Error())
