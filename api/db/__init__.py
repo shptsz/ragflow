@@ -27,6 +27,11 @@ class UserTenantRole(StrEnum):
     INVITE = "invite"
 
 
+class AccessLevel(StrEnum):
+    FULL = "full"
+    KB_ONLY = "kb_only"
+
+
 class TenantPermission(StrEnum):
     ME = "me"
     TEAM = "team"
