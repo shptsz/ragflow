@@ -36,7 +36,6 @@ from api.db.services.user_service import TenantService, UserService, UserTenantS
 from api.db.services.memory_service import MemoryService
 from memory.services.messages import MessageService
 from rag.nlp import search
-from common.constants import ActiveEnum
 from common import settings
 
 
@@ -141,9 +140,7 @@ def delete_user_data(user_id: str) -> dict:
     usr = UserService.filter_by_id(user_id)
     if not usr:
         return {"success": False, "message": f"{user_id} can't be found."}
-    # check is inactive and not admin
-    if usr.is_active == ActiveEnum.ACTIVE.value:
-        return {"success": False, "message": f"{user_id} is active and can't be deleted."}
+    # 禁止删除超管；普通用户（含已激活）经管理员确认后可直接删除
     if usr.is_superuser:
         return {"success": False, "message": "Can't delete the super user."}
     # tenant info

@@ -595,12 +595,7 @@ func (s *Service) DeleteUser(username string) (*DeleteUserResult, error) {
 
 	user := userList[0]
 
-	// Check if user is active - cannot delete active users
-	if user.IsActive == "1" {
-		return nil, fmt.Errorf("User '%s' is active and can't be deleted. Please deactivate the user first", username)
-	}
-
-	// Check if user is superuser - cannot delete admin accounts
+	// 禁止删除超管；普通用户（含已激活）经管理员确认后可直接删除
 	if user.IsSuperuser != nil && *user.IsSuperuser {
 		return nil, fmt.Errorf("Cannot delete admin account")
 	}
