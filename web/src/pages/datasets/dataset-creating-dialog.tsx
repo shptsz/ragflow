@@ -19,8 +19,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { FormLayout } from '@/constants/form';
 import { ParseType } from '@/constants/knowledge';
-import { useFetchDefaultModelDictionary } from '@/hooks/use-llm-request';
+import {
+  useFetchAllAddedModels,
+  useFetchDefaultModelDictionary,
+} from '@/hooks/use-llm-request';
 import { IModalProps } from '@/interfaces/common';
+import { buildModelValue, getRealModelName } from '@/utils/llm-util';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { omit } from 'lodash';
 import { useEffect } from 'react';
@@ -39,7 +43,18 @@ const ChunkMethodName = 'chunk_method';
 
 export function InputForm({ onOk }: IModalProps<any>) {
   const { t } = useTranslation();
+  const { data: addedModels } = useFetchAllAddedModels('embedding');
   const defaultModelDictionary = useFetchDefaultModelDictionary();
+
+  const defaultEmbd =
+    defaultModelDictionary?.embd_id ||
+    (addedModels?.[0]
+      ? buildModelValue({
+          model_name: getRealModelName(addedModels[0].name),
+          model_instance: addedModels[0].instance_name,
+          model_provider: addedModels[0].provider_name,
+        })
+      : '');
 
   const FormSchema = z
     .object({
@@ -60,7 +75,6 @@ export function InputForm({ onOk }: IModalProps<any>) {
       pipeline_id: z.string().optional(),
     })
     .superRefine((data, ctx) => {
-      // When parseType === BuiltIn, chunk_method is required
       if (
         data.parseType === ParseType.BuiltIn &&
         (!data[ChunkMethodName] || data[ChunkMethodName].trim() === '')
@@ -71,7 +85,6 @@ export function InputForm({ onOk }: IModalProps<any>) {
           path: [ChunkMethodName],
         });
       }
-      // When parseType === Pipeline, pipeline_id required
       if (data.parseType === ParseType.Pipeline && !data.pipeline_id) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -87,7 +100,7 @@ export function InputForm({ onOk }: IModalProps<any>) {
       name: '',
       parseType: ParseType.BuiltIn,
       [ChunkMethodName]: '',
-      embedding_model: defaultModelDictionary?.embd_id,
+      embedding_model: defaultEmbd || defaultModelDictionary?.embd_id,
     },
   });
 
@@ -99,6 +112,18 @@ export function InputForm({ onOk }: IModalProps<any>) {
   function onSubmit(data: z.infer<typeof FormSchema>) {
     const nextData =
       parseType === ParseType.BuiltIn ? data : omit(data, ChunkMethodName);
+    // 若误选了 model_id（无 @），转成后端要求的复合格式
+    const embd = nextData.embedding_model;
+    if (embd && !embd.includes('@') && addedModels?.length) {
+      const matched = addedModels.find((m) => m.model_id === embd);
+      if (matched) {
+        nextData.embedding_model = buildModelValue({
+          model_name: getRealModelName(matched.name),
+          model_instance: matched.instance_name,
+          model_provider: matched.provider_name,
+        });
+      }
+    }
     onOk?.(nextData);
   }
 
@@ -106,10 +131,14 @@ export function InputForm({ onOk }: IModalProps<any>) {
     if (parseType === ParseType.BuiltIn) {
       form.setValue('pipeline_id', '');
     }
-    if (defaultModelDictionary?.embd_id) {
-      form.setValue('embedding_model', defaultModelDictionary?.embd_id);
+  }, [parseType, form]);
+
+  useEffect(() => {
+    const next = defaultEmbd || defaultModelDictionary?.embd_id;
+    if (next) {
+      form.setValue('embedding_model', next);
     }
-  }, [parseType, form, defaultModelDictionary]);
+  }, [defaultEmbd, defaultModelDictionary?.embd_id, form]);
 
   return (
     <Form {...form}>
@@ -156,28 +185,20 @@ export function InputForm({ onOk }: IModalProps<any>) {
 }
 
 export function DatasetCreatingDialog({
+  visible,
   hideModal,
-  onOk,
   loading,
+  onOk,
 }: IModalProps<any>) {
   const { t } = useTranslation();
 
   return (
     <Dialog open onOpenChange={hideModal}>
-      <DialogContent
-        className="sm:max-w-[425px] focus-visible:!outline-none flex flex-col"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            const form = document.getElementById(FormId) as HTMLFormElement;
-            form?.requestSubmit();
-          }
-        }}
-      >
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('knowledgeList.createKnowledgeBase')}</DialogTitle>
+          <DialogDescription className="sr-only" />
         </DialogHeader>
-        <DialogDescription></DialogDescription>
         <InputForm onOk={onOk}></InputForm>
         <DialogFooter>
           <ButtonLoading type="submit" form={FormId} loading={loading}>

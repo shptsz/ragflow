@@ -394,6 +394,15 @@ class OpenRouter(Base):
 class OpenAIAPICompatible(Base):
     _FACTORY_NAME = "OpenAI-API-Compatible"
 
+    # 部分网关/代理在 /v1/models 里返回的占位 id，不是可调用模型
+    _IGNORED_MODEL_IDS = frozenset(
+        {
+            "all-proxy-models",
+            "all",
+            "*",
+        }
+    )
+
     _EMBEDDING_HINTS = ("embed", "embedding", "bge")
     _RERANK_HINTS = ("rerank", "reranker")
     _SPEECH2TEXT_HINTS = ("asr", "stt", "transcribe", "transcriber", "whisper")
@@ -445,7 +454,11 @@ class OpenAIAPICompatible(Base):
             if not model_name:
                 continue
 
-            model_name_lower = model_name.lower()
+            model_name_lower = str(model_name).lower()
+            # 过滤网关占位项，避免被当成真实模型去校验/添加
+            if model_name_lower in self._IGNORED_MODEL_IDS:
+                continue
+
             model_list.append(
                 {
                     "name": model_name,

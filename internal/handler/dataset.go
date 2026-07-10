@@ -153,7 +153,7 @@ func (h *DatasetsHandler) CreateDataset(c *gin.Context) {
 		return
 	}
 
-	result, code, err := h.datasetsService.CreateDataset(&req, user.ID)
+	result, code, err := h.datasetsService.CreateDataset(&req, user.ID, user.AccessLevel)
 	if err != nil {
 		common.ErrorWithCode(c, int(code), err.Error())
 		return

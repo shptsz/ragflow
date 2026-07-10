@@ -21,6 +21,7 @@ export interface Iknowledge {
   chunk_method?: string;
   parseType?: ParseType;
   pipeline_id?: string | null;
+  permission?: string;
   ext?: {
     language?: string;
     [key: string]: any;

@@ -69,6 +69,14 @@ async def create_dataset(tenant_id: str, req: dict):
     :param req: dataset creation request
     :return: (success, result) or (success, error_message)
     """
+    from api.apps import current_user
+    from api.common.access_level import normalize_access_level
+    from api.db import AccessLevel
+
+    # kb_only：禁止创建知识库，仅可使用已分配（团队共享）的知识库
+    if normalize_access_level(getattr(current_user, "access_level", None)) == AccessLevel.KB_ONLY:
+        return False, "kb_only 用户无权创建知识库"
+
     # Extract ext field for additional parameters
     ext_fields = req.pop("ext", {})
 
@@ -92,7 +100,12 @@ async def create_dataset(tenant_id: str, req: dict):
         req["parser_config"] = parser_cfg
     req.update(ext_fields)
 
-    e, create_dict = KnowledgebaseService.create_with_name(name=req.pop("name", None), tenant_id=tenant_id, parser_id=req.pop("parser_id", None), **req)
+    e, create_dict = KnowledgebaseService.create_with_name(
+        name=req.pop("name", None),
+        tenant_id=tenant_id,
+        parser_id=req.pop("parser_id", None),
+        **req,
+    )
 
     if not e:
         return False, create_dict
@@ -126,6 +139,14 @@ async def delete_datasets(tenant_id: str, ids: list = None, delete_all: bool = F
     :param delete_all: whether to delete all datasets of the tenant (if ids is not provided)
     :return: (success, result) or (success, error_message)
     """
+    from api.apps import current_user
+    from api.common.access_level import normalize_access_level
+    from api.db import AccessLevel
+
+    # kb_only：禁止删除知识库
+    if normalize_access_level(getattr(current_user, "access_level", None)) == AccessLevel.KB_ONLY:
+        return False, "kb_only 用户无权删除知识库"
+
     kb_id_instance_pairs = []
     if not ids:
         if not delete_all:
@@ -133,12 +154,35 @@ async def delete_datasets(tenant_id: str, ids: list = None, delete_all: bool = F
         else:
             ids = [kb.id for kb in KnowledgebaseService.query(tenant_id=tenant_id)]
 
+    def _can_delete(kb) -> bool:
+        # 租户所有者可删本租户下知识库
+        if kb.tenant_id == tenant_id:
+            return True
+        # 创建者可删自己创建的（含挂在团队租户下的）
+        if getattr(kb, "created_by", None) == tenant_id:
+            return True
+        # 团队所有者可删成员创建/归属的知识库（含历史 me 权限库）
+        from api.db import UserTenantRole
+        from api.db.services.user_service import UserTenantService
+
+        owned = UserTenantService.query(
+            user_id=tenant_id, tenant_id=tenant_id, role=UserTenantRole.OWNER
+        )
+        if owned:
+            members = UserTenantService.get_by_tenant_id(tenant_id)
+            member_ids = {m.get("user_id") for m in members if m.get("user_id")}
+            if kb.tenant_id in member_ids or getattr(kb, "created_by", None) in member_ids:
+                return True
+        return False
+
     error_kb_ids = []
     for kb_id in ids:
         kb = KnowledgebaseService.get_or_none(id=kb_id, tenant_id=tenant_id)
         if kb is None:
-            error_kb_ids.append(kb_id)
-            continue
+            kb = KnowledgebaseService.get_or_none(id=kb_id)
+            if kb is None or not _can_delete(kb):
+                error_kb_ids.append(kb_id)
+                continue
         kb_id_instance_pairs.append((kb_id, kb))
     if len(error_kb_ids) > 0:
         return False, f"""User '{tenant_id}' lacks permission for datasets: '{", ".join(error_kb_ids)}'"""
@@ -147,7 +191,8 @@ async def delete_datasets(tenant_id: str, ids: list = None, delete_all: bool = F
     success_count = 0
     for kb_id, kb in kb_id_instance_pairs:
         for doc in DocumentService.query(kb_id=kb_id):
-            if not DocumentService.remove_document(doc, tenant_id):
+            # 索引按知识库所属租户命名，跨租户删除时必须用 kb.tenant_id
+            if not DocumentService.remove_document(doc, kb.tenant_id):
                 errors.append(f"Remove document '{doc.id}' error for dataset '{kb_id}'")
                 continue
             f2d = File2DocumentService.get_by_document_id(doc.id)
@@ -254,12 +299,38 @@ async def update_dataset(tenant_id: str, dataset_id: str, req: dict):
     :param req: dataset update request
     :return: (success, result) or (success, error_message)
     """
+    from api.apps import current_user
+    from api.common.access_level import normalize_access_level
+    from api.db import AccessLevel, UserTenantRole
+    from api.db.services.user_service import UserTenantService
+
+    # kb_only：禁止修改知识库配置
+    if normalize_access_level(getattr(current_user, "access_level", None)) == AccessLevel.KB_ONLY:
+        return False, "kb_only 用户无权修改知识库配置"
+
     if not req:
         return False, "No properties were modified"
 
+    def _can_manage(kb) -> bool:
+        if kb.tenant_id == tenant_id:
+            return True
+        if getattr(kb, "created_by", None) == tenant_id:
+            return True
+        owned = UserTenantService.query(
+            user_id=tenant_id, tenant_id=tenant_id, role=UserTenantRole.OWNER
+        )
+        if owned:
+            members = UserTenantService.get_by_tenant_id(tenant_id)
+            member_ids = {m.get("user_id") for m in members if m.get("user_id")}
+            if kb.tenant_id in member_ids or getattr(kb, "created_by", None) in member_ids:
+                return True
+        return False
+
     kb = KnowledgebaseService.get_or_none(id=dataset_id, tenant_id=tenant_id)
     if kb is None:
-        return False, f"User '{tenant_id}' lacks permission for dataset '{dataset_id}'"
+        kb = KnowledgebaseService.get_or_none(id=dataset_id)
+        if kb is None or not _can_manage(kb):
+            return False, f"User '{tenant_id}' lacks permission for dataset '{dataset_id}'"
 
     # Extract ext field for additional parameters
     ext_fields = req.pop("ext", {})
@@ -319,7 +390,9 @@ async def update_dataset(tenant_id: str, dataset_id: str, req: dict):
         req["pipeline_id"] = ""
 
     if "name" in req and req["name"].lower() != kb.name.lower():
-        exists = KnowledgebaseService.get_or_none(name=req["name"], tenant_id=tenant_id, status=StatusEnum.VALID.value)
+        exists = KnowledgebaseService.get_or_none(
+            name=req["name"], tenant_id=kb.tenant_id, status=StatusEnum.VALID.value
+        )
         if exists:
             return False, f"Dataset name '{req['name']}' already exists"
 

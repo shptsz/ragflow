@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useCanManageDataset } from '@/hooks/use-can-manage-dataset';
 import { useDeleteKnowledge } from '@/hooks/use-knowledge-request';
 import { IDataset } from '@/interfaces/database/dataset';
 import { PenLine, Trash2 } from 'lucide-react';
@@ -25,6 +26,7 @@ export function DatasetDropdown({
     dataset: IDataset;
   }) {
   const { t } = useTranslation();
+  const { canManage } = useCanManageDataset(dataset);
   const { deleteKnowledge } = useDeleteKnowledge();
 
   const handleShowDatasetRenameModal: MouseEventHandler<HTMLDivElement> =
@@ -39,6 +41,11 @@ export function DatasetDropdown({
   const handleDelete: MouseEventHandler<HTMLDivElement> = useCallback(() => {
     deleteKnowledge(dataset.id);
   }, [dataset.id, deleteKnowledge]);
+
+  // 非所有者 / kb_only：隐藏重命名与删除
+  if (!canManage) {
+    return null;
+  }
 
   return (
     <DropdownMenu>

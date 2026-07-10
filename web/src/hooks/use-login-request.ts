@@ -129,13 +129,20 @@ export const useLogout = () => {
   } = useMutation({
     mutationKey: ['logout'],
     mutationFn: async () => {
-      const { data = {} } = await userService.logout();
-      if (data.code === 0) {
-        message.success(t('message.logout'));
+      let code: number | undefined;
+      try {
+        const { data = {} } = await userService.logout();
+        code = data?.code;
+        if (code === 0) {
+          message.success(t('message.logout'));
+        }
+      } catch {
+        // 接口失败也要清本地会话，避免卡在已登录状态
+      } finally {
         authorizationUtil.removeAll();
         redirectToLogin();
       }
-      return data.code;
+      return code;
     },
   });
 

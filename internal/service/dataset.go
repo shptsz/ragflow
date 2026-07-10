@@ -905,7 +905,7 @@ func (d *DatasetService) CheckEmbedding(userID, datasetID string, req *CheckEmbe
 		return nil, common.CodeServerError, errors.New("doc engine not initialized")
 	}
 
-	driver, modelName, apiConfig, maxTokens, err := NewModelProviderService().GetModelConfigFromProviderInstance(kb.TenantID, entity.ModelTypeEmbedding, embeddingID)
+	driver, modelName, apiConfig, maxTokens, err := NewModelProviderService().ResolveModelConfigWithJoinedFallback(kb.TenantID, entity.ModelTypeEmbedding, embeddingID)
 	if err != nil {
 		return nil, common.CodeDataError, err
 	}
@@ -2081,7 +2081,7 @@ func (d *DatasetService) SearchDatasets(req *SearchDatasetsRequest, userID strin
 	// Determine embedding model
 	var embeddingModel *models.EmbeddingModel
 	if kbRecords[0].EmbdID != "" {
-		driver, modelName, apiConfig, maxTokens, embErr := modelProviderSvc.GetModelConfigFromProviderInstance(tenantIDs[0], entity.ModelTypeEmbedding, kbRecords[0].EmbdID)
+		driver, modelName, apiConfig, maxTokens, embErr := modelProviderSvc.ResolveModelConfigWithJoinedFallback(tenantIDs[0], entity.ModelTypeEmbedding, kbRecords[0].EmbdID)
 		if embErr != nil {
 			return nil, fmt.Errorf("failed to get embedding model by embd_id: %w", embErr)
 		}
@@ -2277,7 +2277,12 @@ func (d *DatasetService) ListDatasets(id, name string, page, pageSize int, order
 }
 
 // CreateDataset creates a new dataset.
-func (d *DatasetService) CreateDataset(req *CreateDatasetRequest, tenantID string) (map[string]interface{}, common.ErrorCode, error) {
+func (d *DatasetService) CreateDataset(req *CreateDatasetRequest, tenantID string, accessLevel string) (map[string]interface{}, common.ErrorCode, error) {
+	// kb_only：禁止创建知识库
+	if common.NormalizeAccessLevel(accessLevel) == common.AccessLevelKBOnly {
+		return nil, common.CodeAuthenticationError, errors.New("kb_only 用户无权创建知识库")
+	}
+
 	if !common.IsValidString(req.Name) {
 		return nil, common.CodeDataError, errors.New("Dataset name must be string.")
 	}
@@ -2561,8 +2566,11 @@ func (d *DatasetService) DeleteDatasets(ids []string, deleteAll bool, tenantID s
 	for _, id := range normalizedIDs {
 		kb, err := d.kbDAO.GetByIDAndTenantID(id, tenantID)
 		if err != nil || kb == nil {
-			unauthorizedIDs = append(unauthorizedIDs, id)
-			continue
+			kb, err = d.kbDAO.GetByID(id)
+			if err != nil || kb == nil || !d.canDeleteDataset(kb, tenantID) {
+				unauthorizedIDs = append(unauthorizedIDs, id)
+				continue
+			}
 		}
 		kbs = append(kbs, kb)
 	}
@@ -2602,6 +2610,50 @@ func (d *DatasetService) DeleteDatasets(ids []string, deleteAll bool, tenantID s
 		"success_count": successCount,
 		"errors":        limitStrings(errorsList, 5),
 	}, common.CodeSuccess, nil
+}
+
+// canDeleteDataset 判断用户是否可删除知识库：租户所有者、创建者，或团队所有者删成员库。
+func (d *DatasetService) canDeleteDataset(kb *entity.Knowledgebase, userID string) bool {
+	if kb == nil {
+		return false
+	}
+	if kb.TenantID == userID {
+		return true
+	}
+	if kb.CreatedBy == userID {
+		return true
+	}
+	owned, err := d.userTenantDAO.GetByUserIDAndRole(userID, "owner")
+	if err != nil || len(owned) == 0 {
+		return false
+	}
+	isOwnerOfSelf := false
+	for _, ut := range owned {
+		if ut.TenantID == userID {
+			isOwnerOfSelf = true
+			break
+		}
+	}
+	if !isOwnerOfSelf {
+		return false
+	}
+	members, err := d.userTenantDAO.GetByTenantID(userID)
+	if err != nil {
+		return false
+	}
+	memberIDs := make(map[string]struct{}, len(members))
+	for _, m := range members {
+		if m.UserID != "" {
+			memberIDs[m.UserID] = struct{}{}
+		}
+	}
+	if _, ok := memberIDs[kb.TenantID]; ok {
+		return true
+	}
+	if _, ok := memberIDs[kb.CreatedBy]; ok {
+		return true
+	}
+	return false
 }
 
 // GetDataset gets a single dataset with its size and linked connectors.
@@ -3532,7 +3584,7 @@ func (d *DatasetService) deleteDataset(tenantID string, kb *entity.Knowledgebase
 		}
 
 		if err := tx.Unscoped().
-			Where("source_type = ? AND type = ? AND name = ? AND tenant_id = ?", string(entity.FileSourceKnowledgebase), "folder", kb.Name, tenantID).
+			Where("source_type = ? AND type = ? AND name = ? AND tenant_id = ?", string(entity.FileSourceKnowledgebase), "folder", kb.Name, kb.TenantID).
 			Delete(&entity.File{}).Error; err != nil {
 			return fmt.Errorf("Delete dataset error for %s", kb.ID)
 		}
@@ -3637,7 +3689,7 @@ func normalizeDatasetID(id string) (string, error) {
 }
 
 func (d *DatasetService) verifyEmbeddingAvailability(embdID string, tenantID string) (bool, string) {
-	_, _, _, _, err := NewModelProviderService().GetModelConfigFromProviderInstance(tenantID, entity.ModelTypeEmbedding, embdID)
+	_, _, _, _, err := NewModelProviderService().ResolveModelConfigWithJoinedFallback(tenantID, entity.ModelTypeEmbedding, embdID)
 	if err != nil {
 		return false, err.Error()
 	}

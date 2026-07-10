@@ -33,8 +33,15 @@ export function buildModelTree(
     model: IAddedModel,
   ) => React.ReactNode,
 ): TreeSelectNode[] {
+  // 兼容后端返回 string 或 string[] 的 model_type
+  const normalizeTypes = (modelType: IAddedModel['model_type'] | string) => {
+    if (Array.isArray(modelType)) return modelType;
+    if (typeof modelType === 'string' && modelType) return [modelType];
+    return [];
+  };
+
   const filtered = allModels.filter((m) =>
-    m.model_type?.some((t) => modelTypes.includes(t)),
+    normalizeTypes(m.model_type).some((t) => modelTypes.includes(t)),
   );
 
   const seenLeafIds = new Set<string>();
@@ -62,8 +69,15 @@ export function buildModelTree(
       title: instance,
       children: models.reduce<TreeSelectNode[]>((acc, m) => {
         const modelName = getRealModelName(m.name);
-        const id = m.model_id;
-        if (seenLeafIds.has(id)) return acc;
+        // 知识库创建/更新接口要求 <model>@<provider> 或 <model>@<instance>@<provider>
+        // 优先用复合 ID；model_id 仅作兼容映射，避免提交 UUID 被后端拒绝
+        const compositeId = buildModelValue({
+          model_name: modelName,
+          model_instance: m.instance_name,
+          model_provider: m.provider_name,
+        });
+        const id = compositeId || m.model_id;
+        if (!id || seenLeafIds.has(id)) return acc;
         seenLeafIds.add(id);
         const leafNode: TreeSelectNode = {
           id,
@@ -83,6 +97,7 @@ export function buildModelTree(
             provider_name: m.provider_name,
             instance_name: m.instance_name,
             model_name: modelName,
+            model_id: m.model_id,
           },
         };
         if (renderLeafLabel) {
@@ -132,9 +147,7 @@ export function ModelTreeSelect({
     [allAddedModels, modelTypes],
   );
 
-  // Backward compatibility: map legacy concatenated ids
-  // ("modelName@instanceName@providerName") to new model_id-based ids so
-  // that previously persisted values still display correctly.
+  // 兼容：表单里若仍是 model_id（UUID），映射到复合 ID 以便正确回显
   const legacyIdMap = useMemo(() => {
     const map = new Map<string, string>();
     const walk = (nodes: TreeSelectNode[]) => {
@@ -142,12 +155,17 @@ export function ModelTreeSelect({
         if (node.children?.length) {
           walk(node.children);
         } else if (node.data) {
-          const legacyId = buildModelValue({
+          const compositeId = buildModelValue({
             model_name: node.data.model_name,
             model_instance: node.data.instance_name,
             model_provider: node.data.provider_name,
           });
-          map.set(legacyId, node.id);
+          if (compositeId) {
+            map.set(compositeId, node.id);
+          }
+          if (node.data.model_id) {
+            map.set(node.data.model_id, node.id);
+          }
         }
       }
     };

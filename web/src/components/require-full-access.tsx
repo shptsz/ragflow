@@ -1,7 +1,8 @@
 import { useAccessLevel } from '@/hooks/use-access-level';
 import { Routes } from '@/routes';
 import type { ComponentType } from 'react';
-import { Navigate, Outlet } from 'react-router';
+import { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router';
 
 /** kb_only 用户访问受限路由时重定向到知识库 */
 export function RequireFullAccess({
@@ -11,9 +12,25 @@ export function RequireFullAccess({
   children?: React.ReactNode;
   redirectTo?: string;
 }) {
-  const { isKbOnly } = useAccessLevel();
-  if (isKbOnly) {
-    return <Navigate to={redirectTo} replace />;
+  const { isKbOnly, isLoading, isError } = useAccessLevel();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && !isError && isKbOnly) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [isLoading, isError, isKbOnly, navigate, redirectTo]);
+
+  if (isError) {
+    return (
+      <div className="flex size-full items-center justify-center p-6 text-sm text-state-error">
+        加载用户信息失败，无法校验访问权限
+      </div>
+    );
+  }
+
+  if (isLoading || isKbOnly) {
+    return null;
   }
   return children ? <>{children}</> : <Outlet />;
 }

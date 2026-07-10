@@ -27,7 +27,23 @@ def test_kb_only_denies_chats_agents_files():
     assert is_path_allowed_for_kb_only("GET", "/api/v1/files") is False
     assert is_path_allowed_for_kb_only("GET", "/api/v1/searches") is False
     assert is_path_allowed_for_kb_only("GET", "/api/v1/memories") is False
-    assert is_path_allowed_for_kb_only("GET", "/api/v1/tenants/x/users") is False
+    assert is_path_allowed_for_kb_only("PATCH", "/api/v1/users/me/models") is False
+
+
+def test_kb_only_allows_team_apis():
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/tenants") is True
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/tenants/x/users") is True
+    assert is_path_allowed_for_kb_only("POST", "/api/v1/tenants/x/users") is True
+    assert is_path_allowed_for_kb_only("DELETE", "/api/v1/tenants/x/users") is True
+    assert is_path_allowed_for_kb_only("PUT", "/api/v1/tenants/x") is True
+
+
+def test_kb_only_allows_login_bootstrap_reads():
+    # 登录后前端会拉模型与租户列表；仅放行只读
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/users/me/models") is True
+    assert is_path_allowed_for_kb_only("HEAD", "/api/v1/users/me/models") is True
+    assert is_path_allowed_for_kb_only("OPTIONS", "/api/v1/users/me/models") is True
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/tenants") is True
     assert is_path_allowed_for_kb_only("PATCH", "/api/v1/users/me/models") is False
 
 
@@ -66,9 +82,23 @@ def test_kb_only_denies_non_kb_modules():
     assert is_path_allowed_for_kb_only("GET", "/api/v1/connectors") is False
     assert is_path_allowed_for_kb_only("GET", "/api/v1/providers") is False
     assert is_path_allowed_for_kb_only("PATCH", "/api/v1/models/default") is False
-    assert is_path_allowed_for_kb_only("GET", "/api/v1/users/me/models") is False
+    assert is_path_allowed_for_kb_only("PATCH", "/api/v1/users/me/models") is False
     assert is_path_allowed_for_kb_only("GET", "/v1/document/download/xyz") is False
     assert is_path_allowed_for_kb_only("POST", "/v1/document/upload_info") is True
+
+
+def test_kb_only_denies_dataset_create_delete_update():
+    # 禁止创建/删除知识库
+    assert is_path_allowed_for_kb_only("POST", "/api/v1/datasets") is False
+    assert is_path_allowed_for_kb_only("DELETE", "/api/v1/datasets") is False
+    # 禁止改知识库本体配置
+    assert is_path_allowed_for_kb_only("PATCH", "/api/v1/datasets/abc") is False
+    assert is_path_allowed_for_kb_only("PUT", "/api/v1/datasets/abc") is False
+    assert is_path_allowed_for_kb_only("DELETE", "/api/v1/datasets/abc") is False
+    # 文档/切片/检索等子资源仍允许
+    assert is_path_allowed_for_kb_only("POST", "/api/v1/datasets/abc/documents") is True
+    assert is_path_allowed_for_kb_only("GET", "/api/v1/datasets/abc") is True
+    assert is_path_allowed_for_kb_only("PATCH", "/api/v1/datasets/abc/documents/doc-1") is True
 
 
 def test_ensure_request_allowed_full_access():

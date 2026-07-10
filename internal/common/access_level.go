@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -33,7 +34,7 @@ var readOnlyMethods = map[string]struct{}{
 	"OPTIONS": {},
 }
 
-// kb_only 用户允许访问的路径前缀（知识库域 + 登录/基础系统接口）
+// kb_only 用户允许访问的路径前缀（知识库域 + 团队 + 登录/基础系统接口）
 var kbOnlyAllowPrefixes = []string{
 	"/api/v1/datasets",
 	"/api/v1/documents",
@@ -41,6 +42,7 @@ var kbOnlyAllowPrefixes = []string{
 	"/api/v1/thumbnails",
 	"/api/v1/tasks",
 	"/api/v1/files/link-to-datasets",
+	"/api/v1/tenants",
 	"/api/v1/auth/",
 	"/api/v1/system/ping",
 	"/api/v1/system/version",
@@ -58,6 +60,12 @@ var kbOnlyExactPaths = map[string]map[string]struct{}{
 		"OPTIONS": {},
 		"PATCH":   {},
 	},
+	// 登录后拉取租户默认模型（只读）；禁止 PATCH 改模型配置
+	"/api/v1/users/me/models": {
+		"GET":     {},
+		"HEAD":    {},
+		"OPTIONS": {},
+	},
 	"/api/v1/system/config": {
 		"GET":     {},
 		"HEAD":    {},
@@ -73,6 +81,9 @@ var kbOnlyReadOnlyPaths = map[string]struct{}{
 	"/api/v1/models":         {},
 	"/api/v1/models/default": {},
 }
+
+// 知识库本体资源：/api/v1/datasets/<id>（不含更深子路径）
+var datasetResourceRE = regexp.MustCompile(`^/api/v1/datasets/[^/]+$`)
 
 // NormalizeAccessLevel 将空值或其他未知值归一为 full；仅 kb_only 为受限级别。
 func NormalizeAccessLevel(value string) string {
@@ -93,11 +104,29 @@ func normalizePath(path string) string {
 	return path
 }
 
+// isDatasetResourceMutation kb_only 禁止创建/删除/改配置知识库本体。
+func isDatasetResourceMutation(method, path string) bool {
+	if path == "/api/v1/datasets" && (method == "POST" || method == "DELETE") {
+		return true
+	}
+	if datasetResourceRE.MatchString(path) {
+		switch method {
+		case "POST", "PUT", "PATCH", "DELETE":
+			return true
+		}
+	}
+	return false
+}
+
 // IsPathAllowedForKbOnly 判断 kb_only 用户是否可访问指定 method+path。
 // 默认拒绝；仅白名单路径放行。
 func IsPathAllowedForKbOnly(method, path string) bool {
 	method = strings.ToUpper(method)
 	path = normalizePath(path)
+
+	if isDatasetResourceMutation(method, path) {
+		return false
+	}
 
 	if methods, ok := kbOnlyExactPaths[path]; ok {
 		if _, ok := methods[method]; ok {

@@ -23,10 +23,11 @@ import {
 import { FieldToModelType } from '@/constants/llm';
 import { useTranslate } from '@/hooks/common-hooks';
 import {
+  useFetchAllAddedModels,
   useFetchDefaultModelDictionary,
   useSetDefaultModel,
 } from '@/hooks/use-llm-request';
-import { parseModelValue } from '@/utils/llm-util';
+import { getRealModelName, parseModelValue, buildModelValue } from '@/utils/llm-util';
 import { CircleQuestionMark } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -84,6 +85,8 @@ function SystemSetting() {
   const { t } = useTranslate('setting');
   const defaultModelDictionary = useFetchDefaultModelDictionary();
   const { setDefaultModel } = useSetDefaultModel();
+  // ModelTreeSelect 的 onChange 传的是 model_id，不是 name@instance@provider
+  const { data: allAddedModels } = useFetchAllAddedModels();
 
   const handleFieldChange = useCallback(
     async (field: string, value: string) => {
@@ -97,13 +100,36 @@ function SystemSetting() {
           model_name: '',
           model_type: modelType,
         });
-      } else {
-        const parsed = parseModelValue(value);
-        if (!parsed) return;
-        await setDefaultModel({ ...parsed, model_type: modelType });
+        return;
       }
+
+      // 优先按 model_id 解析；旧后端无 model_id 时树节点 id 就是 name@instance@provider
+      const added =
+        allAddedModels.find((m) => m.model_id && m.model_id === value) ||
+        allAddedModels.find((m) => {
+          const legacy = buildModelValue({
+            model_name: getRealModelName(m.name),
+            model_instance: m.instance_name,
+            model_provider: m.provider_name,
+          });
+          return legacy === value;
+        });
+      if (added) {
+        await setDefaultModel({
+          model_provider: added.provider_name,
+          model_instance: added.instance_name,
+          model_name: getRealModelName(added.name),
+          model_type: modelType,
+        });
+        return;
+      }
+
+      // 兼容旧的 name@instance@provider 字符串
+      const parsed = parseModelValue(value);
+      if (!parsed) return;
+      await setDefaultModel({ ...parsed, model_type: modelType });
     },
-    [setDefaultModel],
+    [allAddedModels, setDefaultModel],
   );
 
   const llmList = useMemo(() => {

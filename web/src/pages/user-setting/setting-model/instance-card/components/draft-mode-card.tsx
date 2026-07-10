@@ -22,14 +22,10 @@ import VerifyButton from '../verify-button';
 import { InstanceNameSection } from './instance-name-section';
 
 /**
- * The draft (unsaved) variant of the provider instance card.
+ * 草稿（未保存）实例卡片。
  *
- * Renders the instance name input section at the top, followed by a
- * `<fieldset disabled>` that wraps the form fields, verify button, and
- * per-instance models section. Fields are visually locked (and
- * pointer-events disabled) until the user saves the instance name —
- * after which the parent removes this draft and replaces it with a
- * saved card.
+ * 顶部为实例名输入；下方表单（URL / API Key 等）可直接填写。
+ * 保存实例名时会一并提交已填凭证；无静态模型目录的提供商可先存凭证，再手动加模型。
  */
 export function DraftModeCard({
   formFields,
@@ -55,11 +51,7 @@ export function DraftModeCard({
         handleDelete={handleDelete}
       />
 
-      <fieldset
-        disabled
-        className="contents disabled:[&_*]:pointer-events-none disabled:opacity-60"
-        data-testid="instance-locked-fields"
-      >
+      <div data-testid="instance-draft-fields">
         <DynamicForm.Root
           key={`${providerName}-${instanceName}-true`}
           ref={formRef as RefObject<DynamicFormRef>}
@@ -91,7 +83,7 @@ export function DraftModeCard({
             onInstanceModelsEdited={handleInstanceModelsEdited}
           />
         </div>
-      </fieldset>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense, useEffect } from 'react';
 import {
   createBrowserRouter,
   Navigate,
   redirect,
+  useNavigate,
   type RouteObject,
 } from 'react-router';
 import FallbackComponent from './components/fallback-component';
@@ -84,17 +85,27 @@ export enum Routes {
 
 /** kb_only 进入设置时落到个人资料，否则落到数据源 */
 function UserSettingIndexRedirect() {
-  const { isKbOnly } = useAccessLevel();
-  return (
-    <Navigate
-      to={
-        isKbOnly
-          ? `${Routes.UserSetting}/profile`
-          : `${Routes.UserSetting}${Routes.DataSource}`
-      }
-      replace
-    />
-  );
+  const { isKbOnly, isLoading, isError } = useAccessLevel();
+  const navigate = useNavigate();
+  const target = isKbOnly
+    ? `${Routes.UserSetting}/profile`
+    : `${Routes.UserSetting}${Routes.DataSource}`;
+
+  useEffect(() => {
+    if (!isLoading && !isError) {
+      navigate(target, { replace: true });
+    }
+  }, [isLoading, isError, target, navigate]);
+
+  if (isError) {
+    return (
+      <div className="flex size-full items-center justify-center p-6 text-sm text-state-error">
+        加载用户信息失败，无法进入设置页
+      </div>
+    );
+  }
+
+  return null;
 }
 
 const defaultRouteFallback = (
@@ -123,7 +134,9 @@ const withLazyRoute = (
     LazyComponent.name ||
     'Component'
   })`;
-  return process.env.NODE_ENV === 'development' ? LazyComponent : memo(Wrapped);
+  // 开发环境也必须包 Suspense，否则权限就绪后的同步跳转会触发
+  // “suspended while responding to synchronous input”
+  return memo(Wrapped);
 };
 
 const routeConfigOptions = [
@@ -221,7 +234,9 @@ const routeConfigOptions = [
           },
           {
             path: `${Routes.DatasetBase}${Routes.DataSetSetting}/:id`,
-            Component: () => import('@/pages/dataset/dataset-setting'),
+            Component: withRequireFullAccess(
+              () => import('@/pages/dataset/dataset-setting'),
+            ),
           },
         ],
       },

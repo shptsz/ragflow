@@ -23,6 +23,7 @@ import { has } from 'lodash';
 import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
+import { useAccessLevel } from './use-access-level';
 import {
   useGetPaginationWithRouter,
   useHandleSearchChange,
@@ -67,6 +68,7 @@ export const useFetchChatList = () => {
   const { pagination, setPagination } = useGetPaginationWithRouter();
   const debouncedSearchString = useDebounce(searchString, { wait: 500 });
   const { filterValue, handleFilterSubmit } = useHandleFilterSubmit();
+  const { isKbOnly, isReady, isError: accessError } = useAccessLevel();
 
   const {
     data,
@@ -84,6 +86,8 @@ export const useFetchChatList = () => {
     initialData: { chats: [], total: 0 },
     gcTime: 0,
     refetchOnWindowFocus: false,
+    // kb_only 无权访问 /chats；权限未就绪或失败时也不请求，避免登录竞态 403
+    enabled: isReady && !isKbOnly && !accessError,
     queryFn: async () => {
       const { data } = await chatService.listChats(
         {

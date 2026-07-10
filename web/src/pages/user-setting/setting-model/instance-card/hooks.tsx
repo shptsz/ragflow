@@ -327,29 +327,33 @@ export function useVerifyProvider(
 // ---------------------------------------------------------------------------
 
 /**
- * Save the instance name on its own. Calls `addProviderInstance` with
- * only the instance name (backend now supports creating an instance with
- * just a name). On success notifies the parent via `onNameSaved` so it
- * can remove this draft — the invalidated `providerInstances` query
- * will surface the persisted card automatically.
+ * 保存草稿实例名；若表单已填 base_url / api_key，一并提交。
+ * 无静态模型目录的提供商允许仅凭证落库，模型可稍后添加。
  */
 export function useSaveInstanceName(
   providerName: string,
   draftName: string,
   onNameSaved?: () => void,
+  formRef?: RefObject<DynamicFormRef>,
 ) {
   const { addProviderInstance } = useAddProviderInstance();
   return useCallback(async () => {
     const trimmed = draftName.trim();
     if (!trimmed) return;
-    const ret = await addProviderInstance({
+    const values = formRef?.current?.getValues?.() ?? {};
+    const payload: Record<string, any> = {
       llm_factory: providerName,
       instance_name: trimmed,
-    } as any);
+    };
+    const baseUrl = values.base_url ?? values.api_base;
+    if (baseUrl) payload.base_url = baseUrl;
+    if (values.api_key) payload.api_key = values.api_key;
+    if (values.region) payload.region = values.region;
+    const ret = await addProviderInstance(payload as any);
     if (ret?.code === 0) {
       onNameSaved?.();
     }
-  }, [draftName, addProviderInstance, providerName, onNameSaved]);
+  }, [draftName, addProviderInstance, providerName, onNameSaved, formRef]);
 }
 
 // ---------------------------------------------------------------------------

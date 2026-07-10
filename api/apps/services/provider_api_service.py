@@ -647,7 +647,8 @@ async def verify_api_key(provider_id_or_name: str, api_key: str | dict, base_url
     else:
         factory_llms = factory_info[0]["llm"]
         if not factory_llms:
-            return False, f"No models found for provider '{provider_id_or_name}'", {}
+            # OpenAI-API-Compatible / VLLM 等无静态模型目录：允许先保存凭证，模型稍后手动添加
+            return True, "", {}
 
     model_verify_result = {}
     # test if api key works

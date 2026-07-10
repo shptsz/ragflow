@@ -1,23 +1,44 @@
-import { Navigate, Outlet, useLocation } from 'react-router';
 import { SideBar } from './sidebar';
 
 import { useAccessLevel } from '@/hooks/use-access-level';
 import { cn } from '@/lib/utils';
 import { Routes } from '@/routes';
+import { useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 
 const profilePath = `${Routes.UserSetting}/profile`;
+const teamPath = `${Routes.UserSetting}${Routes.Team}`;
 
 const UserSetting = () => {
-  const { isKbOnly } = useAccessLevel();
+  const { isKbOnly, isLoading, isError, error } = useAccessLevel();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
-  // kb_only 仅允许个人资料页，其余设置子路由重定向
-  if (
-    isKbOnly &&
-    pathname !== profilePath &&
-    !pathname.startsWith(`${profilePath}/`)
-  ) {
-    return <Navigate to={profilePath} replace />;
+  const allowed =
+    pathname === profilePath ||
+    pathname.startsWith(`${profilePath}/`) ||
+    pathname === teamPath ||
+    pathname.startsWith(`${teamPath}/`);
+  const shouldRedirect = !isLoading && !isError && isKbOnly && !allowed;
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      navigate(profilePath, { replace: true });
+    }
+  }, [shouldRedirect, navigate]);
+
+  if (isError) {
+    return (
+      <div className="flex size-full flex-col items-center justify-center gap-2 p-6 text-center">
+        <p className="text-sm text-state-error">
+          {error?.message || '加载用户信息失败'}
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading || shouldRedirect) {
+    return null;
   }
 
   return (

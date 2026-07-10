@@ -14,13 +14,16 @@ import { Form } from '@/components/ui/form';
 import { FormLayout } from '@/constants/form';
 import { DocumentParserType, ParseType } from '@/constants/knowledge';
 import { PermissionRole } from '@/constants/permission';
+import { useCanManageDataset } from '@/hooks/use-can-manage-dataset';
 import { IConnector, IDataset } from '@/interfaces/database/dataset';
 import { useDataSourceInfo } from '@/pages/user-setting/data-source/constant';
 import { IDataSourceBase } from '@/pages/user-setting/data-source/interface';
+import { Routes } from '@/routes';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createContext, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
 import {
   GenerateType,
@@ -62,6 +65,8 @@ const enum MethodValue {
 
 export default function DatasetSettings() {
   const { t } = useTranslation();
+  const { id: kbId } = useParams();
+  const navigate = useNavigate();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -123,6 +128,23 @@ export default function DatasetSettings() {
   const { dataSourceInfo } = useDataSourceInfo();
   const { knowledgeDetails, loading: datasetSettingLoading } =
     useFetchKnowledgeConfigurationOnMount(form);
+  const { canManage } = useCanManageDataset(knowledgeDetails);
+
+  // 非所有者不可进入配置页（直链访问时回退到文件列表）
+  useEffect(() => {
+    if (!datasetSettingLoading && knowledgeDetails?.id && !canManage && kbId) {
+      navigate(`${Routes.DatasetBase}${Routes.Files}/${kbId}`, {
+        replace: true,
+      });
+    }
+  }, [
+    canManage,
+    datasetSettingLoading,
+    knowledgeDetails?.id,
+    kbId,
+    navigate,
+  ]);
+
   // const [pipelineData, setPipelineData] = useState<IDataPipelineNodeProps>();
   const [sourceData, setSourceData] = useState<IDataSourceNodeProps[]>();
   const [graphRagGenerateData, setGraphRagGenerateData] =

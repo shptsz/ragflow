@@ -41,29 +41,42 @@ export const enum UserSettingApiAction {
   FetchLangfuseConfig = 'fetchLangfuseConfig',
 }
 
-export const useFetchUserInfo = (): ResponseGetType<IUserInfo> => {
-  const { data, isFetching: loading } = useQuery({
+export const useFetchUserInfo = (): ResponseGetType<IUserInfo> & {
+  isError: boolean;
+  isFetched: boolean;
+  error: Error | null;
+} => {
+  // 不用 initialData：空对象会被当成已成功，导致权限层永久 loading / 误报错
+  const { data, isFetching, isPending, isError, isFetched, error } = useQuery({
     queryKey: [UserSettingApiAction.UserInfo],
-    initialData: {},
     gcTime: 0,
+    retry: 1,
     queryFn: async () => {
       const { data } = await userService.userInfo();
 
-      if (data.code === 0) {
+      if (data.code === 0 && data.data) {
         const targetLng =
           supportedLanguages.find((lang) => lang.code === data.data.language)
             ?.code ?? DEFAULT_LANGUAGE_CODE;
 
         return Object.assign({}, data.data, {
           language: targetLng,
-        });
+        }) as IUserInfo;
       }
 
-      return data.data ?? {};
+      throw new Error(data?.message || '获取用户信息失败');
     },
   });
 
-  return { data, loading };
+  return {
+    // 兼容 Header 等处对 data 字段的解构默认值
+    data: data ?? ({} as IUserInfo),
+    // isPending：首次无数据；有数据后的后台刷新不算整页 loading
+    loading: isPending || (isFetching && !data),
+    isError,
+    isFetched,
+    error: error instanceof Error ? error : error ? new Error(String(error)) : null,
+  };
 };
 
 // Stop using this interface to retrieve the default model; instead, directly call `useFetchDefaultModelDictionary`.

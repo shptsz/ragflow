@@ -515,6 +515,40 @@ func (s *TenantService) GetModelInfo(tenantID string, defaultModel string, model
 }
 
 func (s *TenantService) ListTenantDefaultModels(userID string) ([]ModelItem, error) {
+	return s.ListTenantDefaultModelsWithAccess(userID, common.AccessLevelFull)
+}
+
+// ListTenantDefaultModelsWithAccess 列出默认模型；自身为空时回退到已加入团队。
+func (s *TenantService) ListTenantDefaultModelsWithAccess(userID, accessLevel string) ([]ModelItem, error) {
+	result, err := s.listTenantDefaultModelsForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(result) > 0 {
+		return result, nil
+	}
+
+	joined, err := s.userTenantDAO.GetByUserIDAndRole(userID, "normal")
+	if err != nil {
+		return nil, err
+	}
+	for _, ut := range joined {
+		if ut == nil || ut.TenantID == "" {
+			continue
+		}
+		// 用团队所有者的 userID（租户 ID 即所有者 ID）拉取默认模型
+		joinedResult, joinedErr := s.listTenantDefaultModelsForUser(ut.TenantID)
+		if joinedErr != nil {
+			continue
+		}
+		if len(joinedResult) > 0 {
+			return joinedResult, nil
+		}
+	}
+	return result, nil
+}
+
+func (s *TenantService) listTenantDefaultModelsForUser(userID string) ([]ModelItem, error) {
 
 	tenantInfos, err := s.tenantDAO.GetInfoByUserID(userID)
 	if err != nil {

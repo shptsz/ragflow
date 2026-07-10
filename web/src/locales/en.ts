@@ -1707,7 +1707,7 @@ Example: Virtual Hosted Style`,
         'A unique name to identify this provider instance under the same factory.',
       instanceNamePlaceholder: 'Please input instance name',
       instanceNameSaveTip:
-        'Enter an instance name and save it. Once saved, it cannot be changed.',
+        'Fill base URL / API key (optional), then save the instance name. Once saved, the name cannot be changed.',
       instanceNameSavePrompt:
         'Please save the instance name first before editing other fields.',
       instanceNameLockedHint: 'Instance name is locked',
@@ -3263,6 +3263,7 @@ Important structured information may include: names, dates, locations, events, k
       userType: 'User type',
       superuser: 'Superuser',
       normalUser: 'Normal',
+      kbOnlyUser: 'Knowledge base only',
       accessLevel: 'Access level',
       accessLevelFull: 'Full access',
       accessLevelKbOnly: 'Knowledge base only',

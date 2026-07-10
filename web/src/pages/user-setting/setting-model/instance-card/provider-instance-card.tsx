@@ -151,6 +151,7 @@ function GenericProviderInstanceCard({
     providerName,
     draftName,
     onNameSaved,
+    formRef,
   );
   const handleDelete = useDeleteInstance(
     providerName,

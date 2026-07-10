@@ -13,6 +13,7 @@ import {
 import { IconFontFill } from '@/components/icon-font';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { Button } from '@/components/ui/button';
+import { useCanManageDataset } from '@/hooks/use-can-manage-dataset';
 import { useSecondPathName } from '@/hooks/route-hook';
 import { useFetchKnowledgeGraph } from '@/hooks/use-knowledge-request';
 import { cn, formatBytes } from '@/lib/utils';
@@ -32,6 +33,7 @@ export function SideBar({ dataset: data }: PropType) {
   const { id } = useParams();
   const { data: routerData } = useFetchKnowledgeGraph();
   const { t } = useTranslation();
+  const { canManage } = useCanManageDataset(data);
 
   const items = useMemo(() => {
     const list = [
@@ -50,12 +52,16 @@ export function SideBar({ dataset: data }: PropType) {
         label: t(`knowledgeDetails.overview`),
         key: Routes.DataSetOverview,
       },
-      {
+    ];
+
+    // 仅知识库所有者可改配置（团队成员隐藏）
+    if (canManage) {
+      list.push({
         icon: <LucideSettings className="size-[1em]" />,
         label: t(`knowledgeDetails.configuration`),
         key: Routes.DataSetSetting,
-      },
-    ];
+      });
+    }
 
     if (!isEmpty(routerData?.graph)) {
       list.push({
@@ -66,7 +72,7 @@ export function SideBar({ dataset: data }: PropType) {
     }
 
     return list;
-  }, [t, routerData]);
+  }, [t, routerData, canManage]);
 
   return (
     <aside className="flex flex-col w-64 relative">

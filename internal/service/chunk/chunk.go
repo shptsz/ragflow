@@ -369,13 +369,13 @@ func (s *ChunkService) RetrievalTest(req *service.RetrievalTestRequest, userID s
 		embeddingModel = models.NewEmbeddingModel(driver, &modelName, apiConfig, maxTokens)
 	} else if kbRecords[0].EmbdID != "" {
 		embdID = kbRecords[0].EmbdID
-		driver, modelName, apiConfig, maxTokens, getErr := modelProviderSvc.GetModelConfigFromProviderInstance(tenantIDs[0], entity.ModelTypeEmbedding, embdID)
+		driver, modelName, apiConfig, maxTokens, getErr := modelProviderSvc.ResolveModelConfigWithJoinedFallback(tenantIDs[0], entity.ModelTypeEmbedding, embdID)
 		if getErr != nil {
 			_, embdID, err = dao.LookupTenantLLMByName(dao.NewTenantLLMDAO(), tenantIDs[0], kbRecords[0].EmbdID, entity.ModelTypeEmbedding)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get embedding model by embd_id: %w", getErr)
 			}
-			driver, modelName, apiConfig, maxTokens, getErr = modelProviderSvc.GetModelConfigFromProviderInstance(tenantIDs[0], entity.ModelTypeEmbedding, embdID)
+			driver, modelName, apiConfig, maxTokens, getErr = modelProviderSvc.ResolveModelConfigWithJoinedFallback(tenantIDs[0], entity.ModelTypeEmbedding, embdID)
 			if getErr != nil {
 				return nil, fmt.Errorf("failed to get embedding model by embd_id: %w", getErr)
 			}

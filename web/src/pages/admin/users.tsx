@@ -212,15 +212,25 @@ function AdminUserManagement() {
     retry: false,
   });
 
-  const setSuperuserMutation = useMutation({
-    mutationFn: ({
+  // 用户类型：超级用户 / 普通用户 / 仅知识库用户（串联超管与 access_level）
+  const setUserTypeMutation = useMutation({
+    mutationFn: async ({
       email,
-      type,
+      userType,
     }: {
       email: string;
-      type: 'grant' | 'revoke';
+      userType: 'superuser' | 'normal' | 'kb_only';
     }) => {
-      return type === 'grant' ? grantSuperuser(email) : revokeSuperuser(email);
+      if (userType === 'superuser') {
+        await grantSuperuser(email);
+        await updateUserAccessLevel(email, 'full');
+        return;
+      }
+      await revokeSuperuser(email);
+      await updateUserAccessLevel(
+        email,
+        userType === 'kb_only' ? 'kb_only' : 'full',
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin/listUsers'] });
@@ -232,17 +242,6 @@ function AdminUserManagement() {
   const updateUserStatusMutation = useMutation({
     mutationFn: (data: { email: string; isActive: boolean }) =>
       updateUserStatus(data.email, data.isActive ? 'on' : 'off'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin/listUsers'] });
-    },
-    retry: false,
-  });
-
-  const updateUserAccessLevelMutation = useMutation({
-    mutationFn: (data: {
-      email: string;
-      accessLevel: 'full' | 'kb_only';
-    }) => updateUserAccessLevel(data.email, data.accessLevel),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin/listUsers'] });
     },
@@ -360,70 +359,64 @@ function AdminUserManagement() {
         ),
       }),
 
-      columnHelper.accessor('is_superuser', {
-        header: t('admin.userType'),
-        cell: ({ cell, row }) => {
-          const isMe = row.original.email === userInfo?.email;
+      columnHelper.accessor(
+        (row) =>
+          row.is_superuser
+            ? 'superuser'
+            : row.access_level === 'kb_only'
+              ? 'kb_only'
+              : 'normal',
+        {
+          id: 'userType',
+          header: t('admin.userType'),
+          cell: ({ row, getValue }) => {
+            const isMe = row.original.email === userInfo?.email;
+            const userType = getValue() as 'superuser' | 'normal' | 'kb_only';
 
-          if (isMe) {
-            return <Badge variant="secondary">{t('admin.superuser')}</Badge>;
-          }
-
-          return (
-            <Select
-              disabled={
-                setSuperuserMutation.isPending ||
-                row.original.email === userInfo?.email
-              }
-              value={cell.getValue() ? 'superuser' : 'normal'}
-              onValueChange={(value) => {
-                setSuperuserMutation.mutate({
-                  email: row.original.email,
-                  type: value === 'superuser' ? 'grant' : 'revoke',
-                });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="normal">{t('admin.normalUser')}</SelectItem>
-                <SelectItem value="superuser">
-                  {t('admin.superuser')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          );
-        },
-      }),
-
-      columnHelper.accessor('access_level', {
-        header: t('admin.accessLevel'),
-        cell: ({ cell, row }) => (
-          <Select
-            disabled={updateUserAccessLevelMutation.isPending}
-            value={cell.getValue() ?? 'full'}
-            onValueChange={(value) =>
-              updateUserAccessLevelMutation.mutate({
-                email: row.original.email,
-                accessLevel: value as 'full' | 'kb_only',
-              })
+            if (isMe) {
+              return (
+                <Badge variant="secondary">
+                  {userType === 'kb_only'
+                    ? t('admin.kbOnlyUser')
+                    : userType === 'superuser'
+                      ? t('admin.superuser')
+                      : t('admin.normalUser')}
+                </Badge>
+              );
             }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
 
-            <SelectContent>
-              <SelectItem value="full">{t('admin.accessLevelFull')}</SelectItem>
-              <SelectItem value="kb_only">
-                {t('admin.accessLevelKbOnly')}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        ),
-      }),
+            return (
+              <Select
+                disabled={
+                  setUserTypeMutation.isPending ||
+                  row.original.email === userInfo?.email
+                }
+                value={userType}
+                onValueChange={(value) => {
+                  setUserTypeMutation.mutate({
+                    email: row.original.email,
+                    userType: value as 'superuser' | 'normal' | 'kb_only',
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value="normal">{t('admin.normalUser')}</SelectItem>
+                  <SelectItem value="superuser">
+                    {t('admin.superuser')}
+                  </SelectItem>
+                  <SelectItem value="kb_only">
+                    {t('admin.kbOnlyUser')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            );
+          },
+        },
+      ),
 
       columnHelper.display({
         id: 'actions',
@@ -483,8 +476,7 @@ function AdminUserManagement() {
       updateUserRoleMutation,
       userInfo?.email,
       updateUserStatusMutation,
-      updateUserAccessLevelMutation,
-      setSuperuserMutation,
+      setUserTypeMutation,
       navigate,
     ],
   );

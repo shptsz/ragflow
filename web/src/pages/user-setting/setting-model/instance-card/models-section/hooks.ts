@@ -47,6 +47,16 @@ const TOOL_FEATURE_KEYS = ['is_tools', 'tool_call', 'tools', 'function_call'];
 /** Sentinel instance name used by draft (unsaved) provider cards. */
 export const DRAFT_INSTANCE_SENTINEL = '__draft__';
 
+/** 部分 OpenAI 兼容网关在 /v1/models 返回的占位 id，不是可调用模型 */
+const IGNORED_CATALOG_MODEL_IDS = new Set([
+  'all-proxy-models',
+  'all',
+  '*',
+]);
+
+const isIgnoredCatalogModel = (name: string) =>
+  IGNORED_CATALOG_MODEL_IDS.has(String(name || '').toLowerCase());
+
 // ---------------------------------------------------------------------------
 // Pure helpers (no React state, easy to test)
 // ---------------------------------------------------------------------------
@@ -150,7 +160,10 @@ export function useModelsCatalog({
         base_url: baseUrl,
       });
       if (ret?.code === 0) {
-        setCatalog((ret.data as IProviderModelItem[]) ?? []);
+        const items = ((ret.data as IProviderModelItem[]) ?? []).filter(
+          (m) => m?.name && !isIgnoredCatalogModel(m.name),
+        );
+        setCatalog(items);
       }
       setHasFetched(true);
     } catch {
@@ -452,11 +465,39 @@ export function useModelMutations({
   };
 
   const handleRemoveModel = async (model: IProviderModelItem) => {
-    await deleteInstanceModels({
+    // 仅存在于本地目录、尚未挂到实例：只改本地列表
+    if (!addedSet.has(model.name)) {
+      setCatalog((prev) => prev.filter((m) => m.name !== model.name));
+      return;
+    }
+
+    try {
+      const ret = await deleteInstanceModels({
+        provider_name: providerName,
+        instance_name: instanceName,
+        model_name: [model.name],
+      });
+      // 旧后端缺 DELETE 时可能返回非 0；再用 PUT 覆盖 model_info 兜底
+      if (ret?.code === 0) {
+        setCatalog((prev) => prev.filter((m) => m.name !== model.name));
+        return;
+      }
+    } catch {
+      // 405 等走下方 PUT 兜底
+    }
+
+    const { apiKey, baseUrl } = resolveCreds();
+    const nextModels = instanceItems.filter((m) => m.name !== model.name);
+    await updateProviderInstance({
       provider_name: providerName,
       instance_name: instanceName,
-      model_name: [model.name],
+      api_key: apiKey,
+      base_url: baseUrl,
+      region: instance?.region ?? 'default',
+      model_info: buildModelInfo(nextModels),
+      verify: false,
     });
+    setCatalog((prev) => prev.filter((m) => m.name !== model.name));
   };
 
   const handleAddCustom = async (item: IProviderModelItem) => {

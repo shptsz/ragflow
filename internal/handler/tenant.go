@@ -100,7 +100,7 @@ func (h *TenantHandler) GetDefaultModels(c *gin.Context) {
 		return
 	}
 
-	defaultModels, err := h.tenantService.ListTenantDefaultModels(user.ID)
+	defaultModels, err := h.tenantService.ListTenantDefaultModelsWithAccess(user.ID, user.AccessLevel)
 	if err != nil {
 		common.ResponseWithCodeData(c, common.CodeExceptionError, false, err.Error())
 		return

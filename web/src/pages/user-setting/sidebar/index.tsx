@@ -77,11 +77,13 @@ export function SideBar() {
   }, [fetchSystemVersion]);
   const { logout } = useLogout();
 
-  // kb_only 仅保留个人资料（密码修改在资料页内）
+  // kb_only 保留个人资料与团队
   const visibleMenuItems = useMemo(() => {
     const items = menuItems(t);
     return isKbOnly
-      ? items.filter((item) => item.key === Routes.Profile)
+      ? items.filter(
+          (item) => item.key === Routes.Profile || item.key === Routes.Team,
+        )
       : items;
   }, [isKbOnly, t]);
 

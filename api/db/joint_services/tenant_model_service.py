@@ -254,7 +254,22 @@ def resolve_model_config(tenant_id, model_type: str | enum.Enum, model_ref: str)
     try:
         return get_model_config_by_id(tenant_id, model_type, model_ref)
     except LookupError:
-        return get_model_config_from_provider_instance(tenant_id, model_type, model_ref)
+        try:
+            return get_model_config_from_provider_instance(tenant_id, model_type, model_ref)
+        except LookupError:
+            # 自身租户没有时，尝试已加入团队所有者的模型（团队成员共用管理员模型）
+            for joined in TenantService.get_joined_tenants_by_user_id(tenant_id):
+                joined_id = joined.get("tenant_id")
+                if not joined_id or joined_id == tenant_id:
+                    continue
+                try:
+                    return get_model_config_by_id(joined_id, model_type, model_ref)
+                except LookupError:
+                    try:
+                        return get_model_config_from_provider_instance(joined_id, model_type, model_ref)
+                    except LookupError:
+                        continue
+            raise
 
 
 def get_model_config_from_provider_instance(tenant_id, model_type: str | enum.Enum, model_name: str):

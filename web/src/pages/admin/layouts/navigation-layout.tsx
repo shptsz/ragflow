@@ -77,13 +77,18 @@ const AdminNavigationLayout = () => {
   const logoutMutation = useMutation({
     mutationKey: ['adminLogout'],
     mutationFn: async () => {
-      await logout();
-      authorizationUtil.removeAll();
-      navigate(Routes.Admin);
-      setCurrentUserInfo({
-        userInfo: null,
-        source: null,
-      });
+      try {
+        await logout();
+      } catch {
+        // 接口失败也清本地会话
+      } finally {
+        authorizationUtil.removeAll();
+        setCurrentUserInfo({
+          userInfo: null,
+          source: null,
+        });
+        navigate(Routes.Admin);
+      }
     },
     retry: false,
   });

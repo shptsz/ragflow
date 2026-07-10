@@ -812,21 +812,96 @@ func (m *ModelProviderService) ShowTask(providerName, instanceName, taskID, user
 // to ListTenantDefaultModels (which only enumerates the 6-7 default
 // tenant fields and returned `[]` for any tenant without defaults),
 // breaking the front-end's "View Models" list entirely.
+// ListTenantAddedModels 列出当前用户自有租户下已添加的模型。
 func (m *ModelProviderService) ListTenantAddedModels(userID, modelTypeFilter string) ([]map[string]interface{}, common.ErrorCode, error) {
-	// Resolve tenant. Match the convention used elsewhere in this file
-	// (see ListProviderInstances, DropProviderInstances): take the first
-	// tenant where the user has role=owner.
 	tenants, err := m.userTenantDAO.GetByUserIDAndRole(userID, "owner")
 	if err != nil {
 		return nil, common.CodeServerError, err
 	}
 	if len(tenants) == 0 {
-		// No tenant for the user → empty list, code=0. Python returns
-		// get_result(data=[]) for the same path.
 		return []map[string]interface{}{}, common.CodeSuccess, nil
 	}
-	tenantID := tenants[0].TenantID
+	return m.listTenantAddedModelsForTenant(tenants[0].TenantID, modelTypeFilter)
+}
 
+// ListAccessibleTenantAddedModels 按访问范围列出模型：
+// - 指定 owner_tenant_id：校验加入关系后只返回该租户模型
+// - 未指定：自身租户 + 已加入团队所有者，合并去重（团队成员可用管理员模型）
+func (m *ModelProviderService) ListAccessibleTenantAddedModels(
+	userID, accessLevel, ownerTenantID, modelTypeFilter string,
+) ([]map[string]interface{}, common.ErrorCode, error) {
+	ownTenants, err := m.userTenantDAO.GetByUserIDAndRole(userID, "owner")
+	if err != nil {
+		return nil, common.CodeServerError, err
+	}
+	ownTenantID := ""
+	if len(ownTenants) > 0 {
+		ownTenantID = ownTenants[0].TenantID
+	}
+
+	joined, err := m.userTenantDAO.GetByUserIDAndRole(userID, "normal")
+	if err != nil {
+		return nil, common.CodeServerError, err
+	}
+	joinedIDs := make([]string, 0, len(joined))
+	allowed := map[string]struct{}{}
+	if ownTenantID != "" {
+		allowed[ownTenantID] = struct{}{}
+	}
+	for _, ut := range joined {
+		if ut == nil || ut.TenantID == "" {
+			continue
+		}
+		joinedIDs = append(joinedIDs, ut.TenantID)
+		allowed[ut.TenantID] = struct{}{}
+	}
+
+	targetIDs := make([]string, 0, 1+len(joinedIDs))
+	if ownerTenantID != "" {
+		if _, ok := allowed[ownerTenantID]; !ok {
+			return nil, common.CodeForbidden, errors.New("Permission denied")
+		}
+		targetIDs = append(targetIDs, ownerTenantID)
+	} else {
+		// 合并：自身 + 已加入团队
+		seenTID := map[string]struct{}{}
+		for _, tid := range append([]string{ownTenantID}, joinedIDs...) {
+			if tid == "" {
+				continue
+			}
+			if _, ok := seenTID[tid]; ok {
+				continue
+			}
+			seenTID[tid] = struct{}{}
+			targetIDs = append(targetIDs, tid)
+		}
+	}
+
+	if len(targetIDs) == 0 {
+		return []map[string]interface{}{}, common.CodeSuccess, nil
+	}
+
+	seen := map[string]struct{}{}
+	merged := make([]map[string]interface{}, 0)
+	for _, tenantID := range targetIDs {
+		rows, code, listErr := m.listTenantAddedModelsForTenant(tenantID, modelTypeFilter)
+		if listErr != nil {
+			return nil, code, listErr
+		}
+		for _, row := range rows {
+			key := fmt.Sprintf("%v|%v|%v|%v",
+				row["provider_name"], row["instance_name"], row["name"], row["tenant_id"])
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			merged = append(merged, row)
+		}
+	}
+	return merged, common.CodeSuccess, nil
+}
+
+func (m *ModelProviderService) listTenantAddedModelsForTenant(tenantID, modelTypeFilter string) ([]map[string]interface{}, common.ErrorCode, error) {
 	if modelTypeFilter != "" {
 		modelTypeFilter = strings.ToLower(strings.TrimSpace(modelTypeFilter))
 	}
@@ -937,6 +1012,7 @@ func (m *ModelProviderService) ListTenantAddedModels(userID, modelTypeFilter str
 					"provider_name": p.ProviderName,
 					"instance_id":   inst.ID,
 					"instance_name": inst.InstanceName,
+					"tenant_id":     tenantID,
 				})
 			}
 		}
@@ -2775,6 +2851,33 @@ func (m *ModelProviderService) isImage2TextLLM(tenantID, llmID string) bool {
 	return false
 }
 
+// ResolveModelConfigWithJoinedFallback 先在自身租户解析模型；失败则尝试已加入团队所有者。
+// 供团队成员使用管理员已配置的模型。
+func (m *ModelProviderService) ResolveModelConfigWithJoinedFallback(
+	tenantID string, modelType entity.ModelType, modelName string,
+) (modelModule.ModelDriver, string, *modelModule.APIConfig, int, error) {
+	driver, name, cfg, tokens, err := m.GetModelConfigFromProviderInstance(tenantID, modelType, modelName)
+	if err == nil {
+		return driver, name, cfg, tokens, nil
+	}
+	joined, jerr := m.userTenantDAO.GetByUserIDAndRole(tenantID, "normal")
+	if jerr != nil || len(joined) == 0 {
+		return nil, "", nil, 0, err
+	}
+	var lastErr error = err
+	for _, ut := range joined {
+		if ut == nil || ut.TenantID == "" || ut.TenantID == tenantID {
+			continue
+		}
+		d, n, c, t, e := m.GetModelConfigFromProviderInstance(ut.TenantID, modelType, modelName)
+		if e == nil {
+			return d, n, c, t, nil
+		}
+		lastErr = e
+	}
+	return nil, "", nil, 0, lastErr
+}
+
 // GetChatModelConfig resolves the model configuration for a chat dialog.
 // If llmID is empty, falls back to the tenant's default chat model.
 // When the named LLM is registered as an image2text model, returns the
@@ -2787,5 +2890,5 @@ func (m *ModelProviderService) GetChatModelConfig(tenantID string, llmID string)
 	if m.isImage2TextLLM(tenantID, llmID) {
 		modelType = entity.ModelTypeImage2Text
 	}
-	return m.GetModelConfigFromProviderInstance(tenantID, modelType, llmID)
+	return m.ResolveModelConfigWithJoinedFallback(tenantID, modelType, llmID)
 }

@@ -38,7 +38,8 @@ func TestNormalizeAccessLevel(t *testing.T) {
 func TestIsPathAllowedForKbOnly_AllowDatasetsAndProfile(t *testing.T) {
 	allowed := []struct{ method, path string }{
 		{"GET", "/api/v1/datasets"},
-		{"POST", "/api/v1/datasets"},
+		{"GET", "/api/v1/datasets/abc"},
+		{"POST", "/api/v1/datasets/abc/documents"},
 		{"GET", "/api/v1/datasets/abc/documents"},
 		{"GET", "/api/v1/users/me"},
 		{"PATCH", "/api/v1/users/me"},
@@ -49,6 +50,21 @@ func TestIsPathAllowedForKbOnly_AllowDatasetsAndProfile(t *testing.T) {
 	for _, tc := range allowed {
 		if !IsPathAllowedForKbOnly(tc.method, tc.path) {
 			t.Errorf("expected allow %s %s", tc.method, tc.path)
+		}
+	}
+}
+
+func TestIsPathAllowedForKbOnly_DenyDatasetMutations(t *testing.T) {
+	denied := []struct{ method, path string }{
+		{"POST", "/api/v1/datasets"},
+		{"DELETE", "/api/v1/datasets"},
+		{"PATCH", "/api/v1/datasets/abc"},
+		{"PUT", "/api/v1/datasets/abc"},
+		{"DELETE", "/api/v1/datasets/abc"},
+	}
+	for _, tc := range denied {
+		if IsPathAllowedForKbOnly(tc.method, tc.path) {
+			t.Errorf("expected deny %s %s", tc.method, tc.path)
 		}
 	}
 }

@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { isEmpty } from 'lodash';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAccessLevel } from './use-access-level';
 import { useNavigatePage } from './logic-hooks/navigate-hooks';
 
 export const useWarnEmptyModel = (
@@ -14,8 +15,13 @@ export const useWarnEmptyModel = (
   const { t } = useTranslation();
   const warnedRef = useRef(false);
   const { navigateToModelSetting } = useNavigatePage();
+  const { isKbOnly } = useAccessLevel();
 
   useEffect(() => {
+    // kb_only 不能配置模型，改用管理员已配模型，勿弹「去模型设置」提醒
+    if (isKbOnly) {
+      return;
+    }
     if (
       showEmptyModelWarn &&
       !warnedRef.current &&
@@ -41,5 +47,13 @@ export const useWarnEmptyModel = (
         },
       });
     }
-  }, [showEmptyModelWarn, embdId, llmId, loading, navigateToModelSetting, t]);
+  }, [
+    showEmptyModelWarn,
+    embdId,
+    llmId,
+    loading,
+    navigateToModelSetting,
+    t,
+    isKbOnly,
+  ]);
 };

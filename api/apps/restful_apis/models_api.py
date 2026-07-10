@@ -83,20 +83,45 @@ def get_added_models(tenant_id: str):
     model_type_filter = request.args.get("type")
     owner_tenant_id = request.args.get("owner_tenant_id")
     try:
-        target_tenant_id = tenant_id
-        if owner_tenant_id:
-            if owner_tenant_id != tenant_id:
-                joined_tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
-                allowed_tenant_ids = {tenant_id, *(tenant["tenant_id"] for tenant in joined_tenants)}
-                if owner_tenant_id not in allowed_tenant_ids:
-                    return get_error_data_result(message="Permission denied")
-            target_tenant_id = owner_tenant_id
+        from api.apps import current_user  # noqa: F401 — 保留与鉴权上下文一致
 
-        success, result = models_api_service.list_tenant_added_models(target_tenant_id, model_type_filter)
-        if success:
-            return get_result(data=result)
+        joined_tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
+        joined_ids = [t["tenant_id"] for t in joined_tenants]
+        allowed_tenant_ids = {tenant_id, *joined_ids}
+
+        if owner_tenant_id:
+            if owner_tenant_id not in allowed_tenant_ids:
+                return get_error_data_result(message="Permission denied")
+            target_tenant_ids = [owner_tenant_id]
         else:
-            return get_error_data_result(message=result)
+            # 自身租户 + 已加入团队所有者：合并去重，团队成员可用管理员已配模型
+            target_tenant_ids = []
+            seen_tid = set()
+            for tid in [tenant_id, *joined_ids]:
+                if tid and tid not in seen_tid:
+                    seen_tid.add(tid)
+                    target_tenant_ids.append(tid)
+
+        merged = []
+        seen = set()
+        for target_tenant_id in target_tenant_ids:
+            success, result = models_api_service.list_tenant_added_models(target_tenant_id, model_type_filter)
+            if not success:
+                return get_error_data_result(message=result)
+            for row in result or []:
+                key = (
+                    row.get("provider_name"),
+                    row.get("instance_name"),
+                    row.get("name"),
+                    row.get("tenant_id") or target_tenant_id,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                if "tenant_id" not in row:
+                    row = {**row, "tenant_id": target_tenant_id}
+                merged.append(row)
+        return get_result(data=merged)
     except Exception as e:
         logging.exception(e)
         return get_error_data_result(message="Internal server error")
@@ -146,10 +171,18 @@ def get_default_models(tenant_id: str):
     """
     try:
         success, result = models_api_service.list_tenant_default_models(tenant_id)
-        if success:
-            return get_result(data=result)
-        else:
+        if not success:
             return get_error_data_result(message=result)
+
+        models = (result or {}).get("models") or []
+        # 自身无默认模型时，回退到已加入团队所有者的默认模型（全部成员）
+        if not models:
+            for joined in TenantService.get_joined_tenants_by_user_id(tenant_id):
+                ok, joined_result = models_api_service.list_tenant_default_models(joined["tenant_id"])
+                if ok and (joined_result or {}).get("models"):
+                    return get_result(data=joined_result)
+
+        return get_result(data=result)
     except Exception as e:
         logging.exception(e)
         return get_error_data_result(message="Internal server error")
