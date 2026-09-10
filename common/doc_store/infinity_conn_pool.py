@@ -37,7 +37,7 @@ class InfinityConnectionPool:
         else:
             self.INFINITY_CONFIG = settings.get_base_config("infinity", {"uri": "infinity:23817", "postgres_port": 5432, "db_name": "default_db"})
 
-        raw_pool_max_size = os.environ.get("INFINITY_POOL_MAX_SIZE", "4")
+        raw_pool_max_size = os.environ.get("INFINITY_POOL_MAX_SIZE", "8")
         try:
             self.pool_max_size = int(raw_pool_max_size)
         except ValueError as e:

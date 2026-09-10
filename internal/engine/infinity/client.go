@@ -58,7 +58,7 @@ type infinityClient struct {
 // defaultPoolMaxSize is the hard upper bound (MaxOpen) for the Go Infinity
 // connection pool. Invalid or missing INFINITY_POOL_MAX_SIZE values fall back
 // to this rather than becoming unbounded.
-const defaultPoolMaxSize = 4
+const defaultPoolMaxSize = 8
 
 // defaultMaxIdleConnections caps how many established connections the pool
 // keeps idle for reuse, independent of the pool's hard open cap (MaxOpen).
