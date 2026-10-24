@@ -59,7 +59,7 @@ from common.constants import LLMType, ParserType, RetCode, TaskStatus
 from common.doc_store.doc_store_base import OrderByExpr
 from common.metadata_utils import convert_conditions, filter_doc_ids_by_metadata
 from common.misc_utils import thread_pool_exec
-from common.string_utils import is_content_empty, remove_redundant_spaces
+from common.string_utils import is_content_empty
 from common.tag_feature_utils import validate_tag_features
 from rag.app.tag import label_question
 from rag.nlp import search
@@ -489,6 +489,7 @@ async def list_chunks(tenant_id, dataset_id, document_id):
         "page": page,
         "size": size,
         "question": question,
+        "keyword_list": True,
         "sort": True,
         "must_not": {"exists": "compile_kwd"},
     }
@@ -531,13 +532,13 @@ async def list_chunks(tenant_id, dataset_id, document_id):
             search.index_name(dataset_tenant_id),
             [dataset_id],
             emb_mdl=None,
-            highlight=True,
+            highlight=False,
         )
         res["total"] = sres.total
         for chunk_id in sres.ids:
             d = {
                 "id": chunk_id,
-                "content": (remove_redundant_spaces(sres.highlight[chunk_id]) if question and chunk_id in sres.highlight else sres.field[chunk_id].get("content_with_weight", "")),
+                "content": sres.field[chunk_id].get("content_with_weight", ""),
                 "document_id": sres.field[chunk_id]["doc_id"],
                 "docnm_kwd": sres.field[chunk_id]["docnm_kwd"],
                 "important_keywords": sres.field[chunk_id].get("important_kwd", []),

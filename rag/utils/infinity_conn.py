@@ -144,6 +144,8 @@ class InfinityConnection(InfinityConnectionBase):
         knowledgebase_ids: list[str],
         agg_fields: list[str] | None = None,
         rank_feature: dict | None = None,
+        *,
+        keyword_list: bool = False,
     ) -> tuple[pd.DataFrame, int]:
         """
         BUG: Infinity returns empty for a highlight field if the query string doesn't use that field.
@@ -151,6 +153,10 @@ class InfinityConnection(InfinityConnectionBase):
         if isinstance(index_names, str):
             index_names = index_names.split(",")
         assert isinstance(index_names, list) and len(index_names) > 0
+        if keyword_list and (len(match_expressions) != 1 or not isinstance(match_expressions[0], MatchTextExpr)):
+            raise ValueError("Keyword lists require exactly one text match expression")
+        multiple_tables = len(index_names) * len(knowledgebase_ids) > 1
+        keyword_score = f"score() + {PAGERANK_FLD}"
         inf_conn = self.connPool.get_conn()
         try:
             db_instance = inf_conn.get_database(self.dbName)
@@ -182,6 +188,8 @@ class InfinityConnection(InfinityConnectionBase):
                 if PAGERANK_FLD not in output:
                     output.append(PAGERANK_FLD)
             output = [f for f in output if f and f != "_score"]
+            if keyword_list:
+                output.append(f"{keyword_score} as _keyword_list_score")
             if limit <= 0:
                 # ElasticSearch default limit is 10000
                 limit = 10000
@@ -287,6 +295,22 @@ class InfinityConnection(InfinityConnectionBase):
                     except Exception:
                         continue
                     table_list.append(table_name)
+                    table_total = None
+                    if keyword_list:
+                        # Count the same full-text predicate without a top-N or page window.
+                        matchExpr = match_expressions[0]
+                        fields = ",".join(matchExpr.fields).replace("'", "''")
+                        text = matchExpr.matching_text.replace("'", "''")
+                        minimum_should_match = matchExpr.extra_options.get("minimum_should_match", "0%")
+                        predicate = f"filter_fulltext('{fields}', '{text}', 'minimum_should_match={minimum_should_match}')"
+                        if text_filter := matchExpr.extra_options.get("filter"):
+                            predicate = f"({text_filter}) AND {predicate}"
+                        counts, _ = table_instance.output(["count(*)"]).filter(predicate).to_df()
+                        # Infinity may return one partial count per full-text segment.
+                        table_total = int(counts.iloc[:, 0].sum())
+                        total_hits_count += table_total
+                        if table_total == 0 or (not multiple_tables and offset >= table_total):
+                            continue
                     builder = table_instance.output(output)
                     if len(match_expressions) > 0:
                         for matchExpr in match_expressions:
@@ -296,7 +320,7 @@ class InfinityConnection(InfinityConnectionBase):
                                 builder = builder.match_text(
                                     fields,
                                     matchExpr.matching_text,
-                                    matchExpr.topn,
+                                    table_total if keyword_list else matchExpr.topn,
                                     matchExpr.extra_options.copy(),
                                 )
                             elif isinstance(matchExpr, MatchDenseExpr):
@@ -313,19 +337,29 @@ class InfinityConnection(InfinityConnectionBase):
                     else:
                         if filter_cond and len(filter_cond) > 0:
                             builder.filter(filter_cond)
-                    if order_by.fields:
+                    if keyword_list:
+                        # Sort all matches before slicing; a top-N prefix can drop tied IDs.
+                        builder.sort([(keyword_score, SortType.Desc), ("id", SortType.Asc)])
+                    elif order_by.fields:
                         builder.sort(order_by_expr_list)
-                    builder.offset(offset).limit(limit)
+                    builder.offset(0 if keyword_list and multiple_tables else offset).limit(offset + limit if keyword_list and multiple_tables else limit)
                     kb_res, extra_result = builder.option({"total_hits_count": True}).to_df()
-                    if extra_result:
+                    if extra_result and not keyword_list:
                         total_hits_count += int(extra_result["total_hits_count"])
                     self.logger.debug(f"INFINITY search table: {str(table_name)}, result: {str(kb_res)}")
                     df_list.append(kb_res)
             res = self.concat_dataframes(df_list, output)
             if match_expressions and score_column:
-                res["_score"] = res[score_column] + res[PAGERANK_FLD]
-                res = res.sort_values(by="_score", ascending=False).reset_index(drop=True)
-                res = res.head(limit)
+                if keyword_list:
+                    # Reuse the database's exact score; recomputing it can change ties.
+                    res["_score"] = res[score_column] if res.empty else res["_keyword_list_score"]
+                    res = res.sort_values(by=["_score", "id"], ascending=[False, True])
+                    res = res.iloc[offset : offset + limit] if multiple_tables else res.head(limit)
+                    res = res.reset_index(drop=True)
+                else:
+                    res["_score"] = res[score_column] + res[PAGERANK_FLD]
+                    res = res.sort_values(by="_score", ascending=False).reset_index(drop=True)
+                    res = res.head(limit)
             self.logger.debug(f"INFINITY search final result: {str(res)}")
             return res, total_hits_count
         finally:

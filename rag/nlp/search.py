@@ -206,7 +206,10 @@ class Dealer:
             matchText, keywords = self.qryr.question(qst, min_match=(0.3 if min_match else 0))
             if emb_mdl is None:
                 matchExprs = [matchText] if matchText else []
-                res = await thread_pool_exec(self.dataStore.search, src, highlightFields, filters, matchExprs, orderBy, offset, limit, idx_names, kb_ids, rank_feature=rank_feature)
+                search_options = {"rank_feature": rank_feature}
+                if matchText and req.get("keyword_list") and settings.DOC_ENGINE_INFINITY:
+                    search_options["keyword_list"] = True
+                res = await thread_pool_exec(self.dataStore.search, src, highlightFields, filters, matchExprs, orderBy, offset, limit, idx_names, kb_ids, **search_options)
                 total = self.dataStore.get_total(res)
                 logging.debug("Dealer.search TOTAL: {}".format(total))
             else:

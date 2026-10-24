@@ -66,7 +66,7 @@ class _ReorderingStore:
         self.calls = []
 
     def search(self, fields, highlight, condition, matches, order_by, offset, limit, indexes, datasets, **kwargs):
-        self.calls.append({"order": list(order_by.fields), "condition": condition, "matches": matches, "offset": offset, "limit": limit, "indexes": indexes, "datasets": datasets})
+        self.calls.append({"order": list(order_by.fields), "condition": condition, "matches": matches, "offset": offset, "limit": limit, "indexes": indexes, "datasets": datasets, **kwargs})
         rows = [row for row in self.rows if self._matches(row, condition)]
         # Independent requests may return equal-key records in different orders.
         random.Random(len(self.calls)).shuffle(rows)
@@ -177,3 +177,27 @@ async def test_keyword_and_hybrid_search_do_not_gain_id_order(search_module, hyb
     await search_module.Dealer(store).search({"question": "keyword", "sort": True}, "ragflow_tenant", ["kb"], emb_mdl=EmbeddingModel() if hybrid else None)
     assert store.calls[0]["order"] == []
     assert len(store.calls[0]["matches"]) == (3 if hybrid else 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infinity", [False, True])
+@pytest.mark.parametrize("hybrid", [False, True])
+@pytest.mark.parametrize("keyword_list", [False, True])
+async def test_full_keyword_pagination_is_only_enabled_for_infinity_lists(search_module, infinity, hybrid, keyword_list):
+    class EmbeddingModel:
+        def encode_queries(self, text):
+            return [0.1, 0.2], None
+
+    search_module.settings.DOC_ENGINE_INFINITY = infinity
+    store = _ReorderingStore([_chunk("chunk")])
+    result = await search_module.Dealer(store).search(
+        {"question": "keyword", "keyword_list": keyword_list, "page": 2, "size": 20},
+        "ragflow_tenant",
+        ["kb"],
+        emb_mdl=EmbeddingModel() if hybrid else None,
+    )
+    call = store.calls[0]
+    assert call.get("keyword_list", False) == (infinity and keyword_list and not hybrid)
+    assert call["matches"][0].topn == 10
+    assert (call["offset"], call["limit"]) == (20, 20)
+    assert result.total == 1
